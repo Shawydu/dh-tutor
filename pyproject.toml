@@ -1,0 +1,40 @@
+[project]
+name = "deepdive"
+version = "0.1.0"
+description = "Local, single-user learning engine for software engineering topics."
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp>=2.3.0",
+    "pydantic>=2.14.3",
+    "typer>=0.29.1",
+]
+
+[project.scripts]
+deepdive = "deepdive.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["docs", "tasks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src", "tests"]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "ruff>=0.17.5",
+]

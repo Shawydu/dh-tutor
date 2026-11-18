@@ -1,0 +1,160 @@
+{
+  "title": "Concurrency control in Python vs parallelism",
+  "status": "active",
+  "charter": {
+    "core_questions": [
+      "What does the GIL protect, and what does it cost?",
+      "When do threads, asyncio and processes each help?"
+    ],
+    "in_scope": [
+      "CPython threading",
+      "asyncio",
+      "multiprocessing",
+      "free-threaded builds"
+    ],
+    "parked": [
+      "Other Python implementations"
+    ],
+    "done_when": "The learner can pick threads, asyncio or processes for a workload and say why."
+  },
+  "agenda": [
+    "The GIL",
+    "I/O-bound work",
+    "CPU-bound work",
+    "Free-threaded Python"
+  ],
+  "sources": {
+    "gil-docs": {
+      "url": "https://docs.python.org/3/glossary.html#term-global-interpreter-lock",
+      "kind": "repo",
+      "tier": 2
+    },
+    "pep703": {
+      "url": "https://peps.python.org/pep-0703/",
+      "kind": "paper",
+      "tier": 2
+    },
+    "gil-talk": {
+      "doi": "10.0000/seed.python-gil-talk",
+      "kind": "paper",
+      "tier": 2
+    },
+    "forum": {
+      "url": "https://discuss.python.org/t/gil-removal-timeline",
+      "kind": "discussion",
+      "tier": 3
+    }
+  },
+  "claims": [
+    {
+      "text": "Only one thread executes Python bytecode at a time in a standard CPython build.",
+      "status": "established",
+      "sources": [
+        "gil-docs",
+        "gil-talk"
+      ]
+    },
+    {
+      "text": "PEP 703 makes the GIL optional in CPython builds.",
+      "status": "established",
+      "sources": [
+        "pep703"
+      ]
+    },
+    {
+      "text": "Free-threaded builds run single-threaded code at the same speed as before.",
+      "status": "weakened",
+      "sources": [
+        "forum"
+      ],
+      "stance": "weakens"
+    }
+  ],
+  "questions": {
+    "gil": {
+      "asker": "user",
+      "raw": "What does the GIL actually prevent, and why can't Python threads run in parallel on multiple cores?",
+      "clean": "What does the GIL prevent, and why can't Python threads run in parallel on multiple cores?",
+      "status": "answered"
+    },
+    "threads_io": {
+      "asker": "curious",
+      "raw": "do threads still help when a program mostly waits on network calls?",
+      "clean": "Do threads help when a program mostly waits on network calls?",
+      "status": "answered"
+    },
+    "asyncio_cpu": {
+      "asker": "skeptic",
+      "raw": "would asyncio make my number crunching faster?",
+      "clean": "Would asyncio make CPU-bound number crunching faster?",
+      "status": "open"
+    },
+    "multiprocessing": {
+      "asker": "user",
+      "raw": "how do I get real parallelism in python then?",
+      "clean": "How do I get real parallelism in Python with processes?",
+      "status": "open"
+    },
+    "free_threaded": {
+      "asker": "curious",
+      "raw": "is the free-threaded build from PEP 703 usable yet?",
+      "clean": "Is the free-threaded build from PEP 703 usable yet?",
+      "status": "partial"
+    },
+    "numpy_gil": {
+      "asker": "skeptic",
+      "raw": "numpy seems to use all my cores while holding no lock, why?",
+      "clean": "Why does numpy use every core when native code releases the lock?",
+      "status": "answered"
+    },
+    "locks_needed": {
+      "asker": "guide",
+      "raw": "if the GIL exists do I still need threading.Lock?",
+      "clean": "If the GIL exists, do I still need threading.Lock for shared state?",
+      "status": "open"
+    },
+    "memory": {
+      "asker": "user",
+      "raw": "how much memory does each worker process use?",
+      "clean": "How much memory does each worker process use?",
+      "status": "parked"
+    }
+  },
+  "edges": [
+    {
+      "from": "threads_io",
+      "to": "gil",
+      "relation": "aspect"
+    },
+    {
+      "from": "numpy_gil",
+      "to": "gil",
+      "relation": "narrower"
+    },
+    {
+      "from": "multiprocessing",
+      "to": "gil",
+      "relation": "builds_on"
+    },
+    {
+      "from": "memory",
+      "to": "multiprocessing",
+      "relation": "aspect"
+    },
+    {
+      "from": "free_threaded",
+      "to": "gil",
+      "relation": "clashes"
+    },
+    {
+      "from": "locks_needed",
+      "to": "gil",
+      "relation": "aspect"
+    },
+    {
+      "from": "asyncio_cpu",
+      "to": "threads_io",
+      "relation": "builds_on"
+    }
+  ]
+}

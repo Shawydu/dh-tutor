@@ -1,0 +1,22 @@
+# Domain pack: software engineering (the only pack shipped in the MVP).
+
+name = "software-engineering"
+providers = ["github", "arxiv", "hn"]
+default_depth = "standard"   # overview | standard | deep
+
+# Hosts the engine's fetch tool may contact. Anything else is refused.
+fetch_allowlist = [
+    "github.com",
+    "raw.githubusercontent.com",
+    "arxiv.org",
+    "export.arxiv.org",
+    "news.ycombinator.com",
+    "hn.algolia.com",
+]
+
+# Source kind -> tier. 1 is the most trusted; a lower number ranks first.
+[source_tiers]
+poc = 1
+paper = 2
+repo = 2
+discussion = 3

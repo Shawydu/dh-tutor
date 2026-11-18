@@ -1,0 +1,79 @@
+{
+  "title": "Apache Iceberg and what it solves",
+  "status": "active",
+  "charter": {
+    "core_questions": [
+      "What problems of Hive-style tables does Iceberg fix?",
+      "How do snapshots and commits keep readers and writers consistent?"
+    ],
+    "in_scope": ["table metadata", "snapshots", "catalogs", "optimistic commits"],
+    "parked": ["Query engine internals"],
+    "done_when": "The learner can explain an Iceberg commit from metadata file to catalog swap."
+  },
+  "agenda": ["Why not Hive tables", "The metadata tree", "Snapshots", "Commits and catalogs"],
+  "sources": {
+    "spec": {"url": "https://iceberg.apache.org/spec/", "kind": "repo", "tier": 2},
+    "paper": {"doi": "10.0000/seed.iceberg-commit", "kind": "paper", "tier": 2}
+  },
+  "claims": [
+    {
+      "text": "An Iceberg commit atomically swaps the catalog pointer to a new metadata file.",
+      "status": "established",
+      "sources": ["spec", "paper"]
+    },
+    {
+      "text": "Concurrent writers to one table are resolved by optimistic retry.",
+      "status": "open",
+      "sources": ["spec"]
+    }
+  ],
+  "questions": {
+    "problem": {
+      "asker": "user",
+      "raw": "what was wrong with hive style partitioned tables that iceberg fixes?",
+      "clean": "What was wrong with Hive-style partitioned tables that Iceberg fixes?",
+      "status": "answered"
+    },
+    "metadata_tree": {
+      "asker": "guide",
+      "raw": "how are table metadata, manifest lists and manifests laid out?",
+      "clean": "How are the table metadata file, manifest lists and manifests laid out?",
+      "status": "answered"
+    },
+    "snapshots": {
+      "asker": "curious",
+      "raw": "can I query a table as it was yesterday?",
+      "clean": "Can I query an Iceberg table as it was yesterday with snapshots?",
+      "status": "open"
+    },
+    "commit_concurrent": {
+      "asker": "skeptic",
+      "raw": "what happens when two writers commit at the same moment?",
+      "clean": "What happens when two writers commit to an Iceberg table at the same moment?",
+      "status": "partial"
+    },
+    "catalog": {
+      "asker": "user",
+      "raw": "what does the catalog actually store?",
+      "clean": "What does the Iceberg catalog actually store?",
+      "status": "open"
+    },
+    "threads_cores": {
+      "asker": "skeptic",
+      "raw": "does adding writer threads or cores make commits clash more?",
+      "clean": "Does adding more writer threads or CPU cores make Iceberg commits conflict more often?",
+      "status": "open"
+    },
+    "compaction": {
+      "asker": "user",
+      "raw": "when should small files be compacted?",
+      "clean": "When should small data files be compacted?",
+      "status": "parked"
+    }
+  },
+  "edges": [
+    {"from": "snapshots", "to": "metadata_tree", "relation": "builds_on"},
+    {"from": "catalog", "to": "commit_concurrent", "relation": "builds_on"},
+    {"from": "threads_cores", "to": "commit_concurrent", "relation": "narrower"}
+  ]
+}
