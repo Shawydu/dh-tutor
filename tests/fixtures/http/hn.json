@@ -1,0 +1,99 @@
+{
+ "exhaustive": {
+  "nbHits": false,
+  "typo": false
+ },
+ "exhaustiveNbHits": false,
+ "exhaustiveTypo": false,
+ "hits": [
+  {
+   "_tags": [
+    "story",
+    "author_raldi",
+    "story_26201160"
+   ],
+   "author": "raldi",
+   "created_at": "2021-02-20T03:16:20Z",
+   "created_at_i": 1613790980,
+   "num_comments": 171,
+   "objectID": "26201160",
+   "points": 1669,
+   "story_id": 26201160,
+   "title": "Draw an iceberg and see how it would float in water",
+   "updated_at": "2026-06-24T18:37:33Z",
+   "url": "https://joshdata.me/iceberger.html"
+  },
+  {
+   "_tags": [
+    "story",
+    "author_mabynogy",
+    "story_40620472"
+   ],
+   "author": "mabynogy",
+   "created_at": "2024-06-08T22:04:24Z",
+   "created_at_i": 1717884264,
+   "num_comments": 61,
+   "objectID": "40620472",
+   "points": 388,
+   "story_id": 40620472,
+   "title": "Draw an iceberg and see how it will float",
+   "updated_at": "2025-03-15T02:30:06Z",
+   "url": "https://joshdata.me/iceberger.html"
+  },
+  {
+   "_tags": [
+    "story",
+    "author_plaur782",
+    "story_45812606"
+   ],
+   "author": "plaur782",
+   "created_at": "2025-11-04T16:12:27Z",
+   "created_at_i": 1762272747,
+   "num_comments": 118,
+   "objectID": "45812606",
+   "points": 371,
+   "story_id": 45812606,
+   "title": "Pg_lake: Postgres with Iceberg and data lake access",
+   "updated_at": "2026-10-12T10:47:51Z",
+   "url": "https://github.com/Snowflake-Labs/pg_lake"
+  },
+  {
+   "_tags": [
+    "comment",
+    "author_mc32",
+    "story_9999334"
+   ],
+   "author": "mc32",
+   "comment_text": "Whatever happened to the idea of tugging broken off icebergs as source of freshwater.  It could lessen the impact on rising seas, to some extent.  Desalting of course would lessen it too. perhaps neither would be enough to counteract the overall melting.  But both can address droughts.",
+   "created_at": "2015-08-03T20:43:39Z",
+   "created_at_i": 1438634619,
+   "objectID": "9999646",
+   "parent_id": 9999334,
+   "points": null,
+   "story_id": 9999334,
+   "story_title": "One Way to Fight California's Drought: Desalt the Ocean",
+   "story_url": "http://www.wired.com/2015/08/one-way-fight-californias-drought-desalting-ocean/",
+   "updated_at": "2023-09-07T03:22:05Z"
+  }
+ ],
+ "hitsPerPage": 4,
+ "nbHits": 17948,
+ "nbPages": 250,
+ "page": 0,
+ "params": "query=iceberg&tags=%28story%2Ccomment%29&hitsPerPage=4&advancedSyntax=true&analyticsTags=backend",
+ "processingTimeMS": 35,
+ "processingTimingsMS": {
+  "_request": {
+   "queue": 11,
+   "roundTrip": 15
+  },
+  "fetch": {
+   "query": 14,
+   "scanning": 19,
+   "total": 34
+  },
+  "total": 35
+ },
+ "query": "iceberg",
+ "serverTimeMS": 47
+}

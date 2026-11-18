@@ -31,6 +31,8 @@ class EmbeddingsConfig(_Section):
 
 class SearchConfig(_Section):
     apis: list[str] = ["github", "arxiv", "hn"]
+    session_budget: int = Field(default=30, ge=1)  # searches per interactive session
+    fetch_max_chars: int = Field(default=20000, ge=1)  # longer pages come back truncated
 
 
 class ProbeConfig(_Section):
@@ -134,6 +136,8 @@ model = "TBD"               # local model, picked by testing
 
 [search]
 apis = ["github", "arxiv", "hn"]
+session_budget = 30         # searches per interactive session
+fetch_max_chars = 20000     # longer fetched pages are truncated
 
 [probe]
 schedule = "02:00"          # HH:MM, 24-hour

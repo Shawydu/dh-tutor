@@ -4,7 +4,7 @@ from mcp.server.mcpserver import MCPServer
 
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.limits import Id, Title
-from deepdive.store.repos import topics
+from deepdive.store.repos import agenda, charters, claims, evidence, topics
 
 
 def register(server: MCPServer[None], ctx: LedgerContext) -> None:
@@ -33,3 +33,28 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
         """Pin a topic to the top of the list, or unpin it."""
         pin = topics.pin if pinned else topics.unpin
         return pin(ctx.conn, topic_id).model_dump(mode="json")
+
+    @server.tool()
+    async def map_get(topic_id: Id) -> dict[str, Any]:
+        """Compact map: latest charter (or null), agenda with status, claims with source ids."""
+        ctx.require_topic(topic_id)
+        charter = charters.get_latest(ctx.conn, topic_id)
+        cited: dict[str, list[str]] = {}
+        for e in evidence.list_for_topic(ctx.conn, topic_id):
+            cited.setdefault(str(e.claim_id), []).append(str(e.source_id))
+        return {
+            "charter": charter.model_dump(mode="json") if charter else None,
+            "agenda": [
+                {"id": str(i.id), "facet": i.facet, "status": i.status}
+                for i in agenda.list_items(ctx.conn, topic_id)
+            ],
+            "claims": [
+                {
+                    "id": str(c.id),
+                    "text": c.text,
+                    "status": c.status,
+                    "source_ids": list(dict.fromkeys(cited.get(str(c.id), []))),
+                }
+                for c in claims.list_for_topic(ctx.conn, topic_id)
+            ],
+        }

@@ -4,6 +4,7 @@ import json
 import time
 from typing import Any
 
+import httpx
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import CallToolResult, InputRequiredResult, TextContent
@@ -11,15 +12,18 @@ from pydantic import ValidationError
 from pydantic_core import ErrorDetails
 
 from deepdive import clock
+from deepdive.config import Secrets, load_config
+from deepdive.domain_packs import load_pack
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
-from deepdive.ledger.tools import agenda, charters, claims, questions, sessions, topics
+from deepdive.ledger.tools import agenda, charters, claims, questions, sessions, topics, web
 from deepdive.paths import Paths
 from deepdive.store.db import connect, migrate
 from deepdive.store.errors import StoreError
 
 INSTRUCTIONS = (
-    "The deepdive ledger: topics, charters, sessions, agenda, sources, claims and questions. "
+    "The deepdive ledger: topics, charters, sessions, agenda, sources, claims and questions, "
+    "plus search and fetch (the only web access; results carry a citable source_id). "
     "Write tools need the session_id returned by session_start. Failures come back as "
     '{"error": code, "detail": text}, not as protocol errors.'
 )
@@ -80,8 +84,13 @@ class LedgerServer(MCPServer[None]):
             log.write(line)
 
 
-def create_server(paths: Paths | None = None) -> LedgerServer:
-    """Open (and migrate) the database under `paths` and return the server with all tools."""
+def create_server(
+    paths: Paths | None = None, transport: httpx.AsyncBaseTransport | None = None
+) -> LedgerServer:
+    """Open (and migrate) the database under `paths` and return the server with all tools.
+
+    `transport` replaces the network for search and fetch (tests pass a mock).
+    """
     paths = paths or Paths.from_env()
     paths.ensure_dirs()
     conn = connect(paths.db)
@@ -90,4 +99,6 @@ def create_server(paths: Paths | None = None) -> LedgerServer:
     server = LedgerServer(ctx)
     for module in (topics, charters, sessions, agenda, claims, questions):
         module.register(server, ctx)
+    config = load_config(paths.config)
+    web.register(server, ctx, config, load_pack(config.domain.pack), Secrets.from_env(), transport)
     return server

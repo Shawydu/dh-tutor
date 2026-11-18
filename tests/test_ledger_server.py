@@ -17,12 +17,13 @@ from deepdive.paths import Paths
 from deepdive.store.ids import new_id
 
 TOOLS = {
-    "topic_create", "topic_get", "topic_list", "topic_pin",
+    "topic_create", "topic_get", "topic_list", "topic_pin", "map_get",
     "charter_write", "charter_get",
     "session_start", "session_bookmark", "session_end",
     "agenda_set", "agenda_next", "agenda_done",
     "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
     "question_get", "question_answer", "parked_list",
+    "search", "fetch",
 }  # fmt: skip
 
 MISSING = "00000000-0000-7000-8000-000000000999"  # well-formed, never created
@@ -324,3 +325,28 @@ def test_serve_answers_initialize_over_real_stdio(tmp_path: Path) -> None:
     assert created["title"] == "over stdio"
     assert Paths(tmp_path).db.exists()
     assert "topic_create" in (tmp_path / "logs" / "mcp.log").read_text("utf-8")
+
+
+def test_map_get_returns_charter_agenda_progress_and_claims(ledger: Ledger) -> None:
+    tid, sid = _session(ledger)
+    empty = ledger.call("map_get", topic_id=tid)
+    assert empty == {"charter": None, "agenda": [], "claims": []}
+    ledger.call(
+        "charter_write", session_id=sid, topic_id=tid, core_questions=["Why GIL?"],
+        in_scope=["GIL", "asyncio"], parked=[], done_when="explain asyncio vs CPU-bound",
+    )  # fmt: skip
+    items = ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=["GIL", "asyncio"])
+    ledger.call("agenda_done", session_id=sid, item_id=items["items"][0]["id"])
+    src = ledger.call("source_register", session_id=sid, url="https://e.com/a", kind="docs", tier=1)
+    ledger.call(
+        "claim_add", session_id=sid, topic_id=tid, text="GIL serialises", source_ids=[src["id"]]
+    )
+    got = ledger.call("map_get", topic_id=tid)
+    assert got["charter"]["in_scope"] == ["GIL", "asyncio"]
+    assert [(i["facet"], i["status"]) for i in got["agenda"]] == [
+        ("GIL", "done"),
+        ("asyncio", "open"),
+    ]
+    assert [(c["text"], c["source_ids"]) for c in got["claims"]] == [
+        ("GIL serialises", [src["id"]])
+    ]

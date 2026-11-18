@@ -15,6 +15,7 @@ KIND_MAX = 64
 LIST_MAX = 50  # items in a list argument: facets, charter lists, source ids
 TIER_MAX = 9  # tiers are 1 (most trusted) and up; the domain pack uses 1 to 3
 
+Limit = Annotated[int, Field(ge=1, le=25)]  # results per search
 Id = UUID  # JSON schema format uuid; anything else is refused before the tool runs
 Version = Annotated[int, Field(ge=1)]
 Title = Annotated[str, Field(min_length=1, max_length=TITLE_MAX)]
