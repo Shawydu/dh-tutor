@@ -5,7 +5,7 @@ from mcp.server.mcpserver import MCPServer
 
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
-from deepdive.ledger.limits import TITLE_MAX, Id, Title
+from deepdive.ledger.limits import PAGE_SIZE, TITLE_MAX, Id, Page, Title
 from deepdive.store.enums import AgendaItemStatus, QuestionStatus, TopicStatus
 from deepdive.store.errors import (
     CharterNotFoundError,
@@ -71,10 +71,28 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
         return {"topics": [t.model_dump(mode="json") for t in topics.list_all(ctx.conn)]}
 
     @server.tool()
-    async def topic_overview() -> dict[str, Any]:
-        """For /topics: top-level topics (pinned first) with status, charter_version, agenda
-        done/total, open and parked question counts, last_session_at and indented children."""
-        return {"topics": [t.model_dump(mode="json") for t in topics.overview(ctx.conn)]}
+    async def topic_overview(page: Page = 1, query: Title | None = None) -> dict[str, Any]:
+        """For /topics: one page of top-level topics (pinned, then most recently active, a
+        child's activity counting for its parent) with status, charter_version, agenda
+        done/total, open and parked question counts, last_session_at and children. `query`
+        keeps topics whose title, or a child's title, contains it (any case). Each topic has a
+        position `n` ("3", child "3.1") in this list only; `pages` is the page count and a page
+        past it returns the last page."""
+        # shortcut: pages in Python over every topic, fine for hundreds; move LIMIT into SQL then
+        rows = topics.overview(ctx.conn)
+        if query:
+            q = query.casefold()
+            rows = [t for t in rows if any(q in x.title.casefold() for x in [t, *t.children])]
+        pages = max(1, -(-len(rows) // PAGE_SIZE))
+        page = min(page, pages)
+        start = (page - 1) * PAGE_SIZE
+        shown = []
+        for n, t in enumerate(rows[start : start + PAGE_SIZE], start + 1):
+            kids = [
+                {"n": f"{n}.{k}", **c.model_dump(mode="json")} for k, c in enumerate(t.children, 1)
+            ]
+            shown.append({"n": str(n), **t.model_dump(mode="json"), "children": kids})
+        return {"topics": shown, "page": page, "pages": pages, "total": len(rows)}
 
     @server.tool()
     async def resume_brief(topic_id: Id) -> dict[str, Any]:

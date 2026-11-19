@@ -3,6 +3,7 @@
 import asyncio
 import sqlite3
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -12,6 +13,7 @@ import pytest
 from mcp import Client
 from mcp.client.stdio import StdioServerParameters
 
+from deepdive import clock
 from deepdive.ledger.server import LedgerServer, create_server
 from deepdive.paths import Paths
 from deepdive.store.ids import new_id
@@ -355,6 +357,29 @@ def test_map_get_returns_charter_agenda_progress_and_claims(ledger: Ledger) -> N
     assert [(c["text"], c["sources"]) for c in got["claims"]] == [
         ("GIL serialises", [{"id": src["id"], "url": "https://e.com/a"}])
     ]
+
+
+def test_topic_overview_numbers_and_pages_recent_topics_first(ledger: Ledger) -> None:
+    ids = [ledger.call("topic_create", title=f"T{i}")["id"] for i in range(12)]
+    ledger.call("topic_create", title="kid", parent_topic_id=ids[0])
+    ledger.call("session_start", topic_id=ids[0])
+    first, second = (ledger.call("topic_overview", page=p) for p in (1, 2))
+    assert (first["pages"], first["total"], len(first["topics"])) == (2, 12, 10)
+    top = first["topics"][0]
+    assert (top["n"], top["id"], top["children"][0]["n"]) == ("1", ids[0], "1.1")  # active first
+    assert [t["title"] for t in first["topics"][1:3]] == ["T11", "T10"]  # then newest
+    assert [(t["n"], t["title"]) for t in second["topics"]] == [("11", "T2"), ("12", "T1")]
+    assert ledger.call("topic_overview", page=0)["error"] == "invalid_input"
+    assert ledger.call("topic_overview", page=9)["topics"] == second["topics"]  # clamped
+    found = ledger.call("topic_overview", query="KID")["topics"]  # a child's title finds its parent
+    assert [t["id"] for t in found] == [ids[0]]
+    clock.set_now(datetime(2030, 1, 1, tzinfo=UTC))  # sessions are second-precise; order them
+    ledger.call("session_start", topic_id=ledger.call("topic_create", title="x")["id"])
+    child = ledger.call("topic_create", title="kid2", parent_topic_id=ids[5])
+    clock.set_now(datetime(2030, 1, 2, tzinfo=UTC))
+    ledger.call("session_start", topic_id=child["id"])
+    clock.set_now(None)
+    assert ledger.call("topic_overview")["topics"][0]["id"] == ids[5]  # child activity lifts parent
 
 
 def test_first_charter_activates_a_scoping_topic(ledger: Ledger) -> None:

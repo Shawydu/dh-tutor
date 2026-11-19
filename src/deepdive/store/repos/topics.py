@@ -82,7 +82,8 @@ def unpin(conn: sqlite3.Connection, topic_id: UUID) -> Topic:
 
 
 def overview(conn: sqlite3.Connection) -> list[TopicOverview]:
-    """Top-level topics (pinned first) with per-topic counts and their children, in one query."""
+    """Top-level topics (pinned, then most recently active counting their children's sessions)
+    with per-topic counts and their children, in one query."""
     rows = conn.execute(
         "SELECT id, title, parent_topic_id, status, pinned,"
         " (SELECT MAX(version) FROM charter WHERE topic_id = t.id),"
@@ -90,8 +91,10 @@ def overview(conn: sqlite3.Connection) -> list[TopicOverview]:
         " (SELECT COUNT(*) FROM agenda_item WHERE topic_id = t.id),"
         " (SELECT COUNT(*) FROM question WHERE topic_id = t.id AND status = 'open'),"
         " (SELECT COUNT(*) FROM question WHERE topic_id = t.id AND status = 'parked'),"
-        " (SELECT MAX(started_at) FROM session WHERE topic_id = t.id)"
-        " FROM topic t ORDER BY pinned DESC, id"
+        " (SELECT MAX(started_at) FROM session WHERE topic_id = t.id) AS last_session_at"
+        " FROM topic t ORDER BY pinned DESC,"
+        " (SELECT MAX(s.started_at) FROM session s JOIN topic c ON c.id = s.topic_id"
+        "  WHERE c.id = t.id OR c.parent_topic_id = t.id) DESC, id DESC"
     ).fetchall()
     stats = [
         TopicStats.model_validate(dict(zip(TopicStats.model_fields, r, strict=True))) for r in rows
