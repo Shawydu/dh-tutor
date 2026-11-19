@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from deepdive.store.db import transaction
+from deepdive.store.enums import TopicStatus
 from deepdive.store.errors import TopicNotFoundError
 from deepdive.store.models import Charter
 from deepdive.store.repos._common import check_session, many, one, require
@@ -39,6 +40,11 @@ def write(
                 done_when,
                 session_id,
             ),
+        )
+        # the first charter ends scoping
+        conn.execute(
+            "UPDATE topic SET status = ? WHERE id = ? AND status = ?",
+            (TopicStatus.ACTIVE, topic_id, TopicStatus.SCOPING),
         )
     charter = get_version(conn, topic_id, version)
     assert charter is not None

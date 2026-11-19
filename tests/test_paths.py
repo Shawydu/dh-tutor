@@ -20,5 +20,12 @@ def test_ensure_dirs_creates_missing_folders_and_is_repeatable(tmp_path: Path) -
     paths = Paths(tmp_path / "nested" / "home")
     paths.ensure_dirs()
     paths.ensure_dirs()
-    for folder in (paths.digests, paths.poc, paths.workspace, paths.logs, paths.cache):
+    for folder in (
+        paths.digests,
+        paths.recaps,
+        paths.poc,
+        paths.workspace,
+        paths.logs,
+        paths.cache,
+    ):
         assert folder.is_dir()

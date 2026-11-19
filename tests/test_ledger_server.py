@@ -18,11 +18,14 @@ from deepdive.store.ids import new_id
 
 TOOLS = {
     "topic_create", "topic_get", "topic_list", "topic_pin", "map_get",
+    "topic_overview", "resume_brief", "topic_recap", "recap_save",
     "charter_write", "charter_get",
     "session_start", "session_bookmark", "session_end",
     "agenda_set", "agenda_next", "agenda_done",
     "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
     "question_get", "question_answer", "parked_list",
+    "question_record", "question_park", "parked_search",
+    "child_topic_create", "child_topic_finish", "frontier_add",
     "search", "fetch",
 }  # fmt: skip
 
@@ -330,7 +333,9 @@ def test_serve_answers_initialize_over_real_stdio(tmp_path: Path) -> None:
 def test_map_get_returns_charter_agenda_progress_and_claims(ledger: Ledger) -> None:
     tid, sid = _session(ledger)
     empty = ledger.call("map_get", topic_id=tid)
-    assert empty == {"charter": None, "agenda": [], "claims": []}
+    assert empty == {
+        "charter": None, "agenda": [], "claims": [], "open_questions": [], "frontier": [],
+    }  # fmt: skip
     ledger.call(
         "charter_write", session_id=sid, topic_id=tid, core_questions=["Why GIL?"],
         in_scope=["GIL", "asyncio"], parked=[], done_when="explain asyncio vs CPU-bound",
@@ -350,3 +355,244 @@ def test_map_get_returns_charter_agenda_progress_and_claims(ledger: Ledger) -> N
     assert [(c["text"], c["sources"]) for c in got["claims"]] == [
         ("GIL serialises", [{"id": src["id"], "url": "https://e.com/a"}])
     ]
+
+
+def test_first_charter_activates_a_scoping_topic(ledger: Ledger) -> None:
+    tid, sid = _session(ledger)
+    write = {"session_id": sid, "topic_id": tid, "core_questions": ["Why?"], "in_scope": ["a"]}
+    assert ledger.call("topic_get", topic_id=tid)["status"] == "scoping"
+    ledger.call("charter_write", **write, parked=[], done_when="done")
+    assert ledger.call("topic_get", topic_id=tid)["status"] == "active"
+    ledger.call("charter_write", **write, parked=[], done_when="done v2")
+    assert ledger.call("topic_get", topic_id=tid)["status"] == "active"
+
+
+def test_resume_brief_orders_sections_and_resumes_at_the_bookmarked_item(ledger: Ledger) -> None:
+    tid, sid = _session(ledger)
+    fresh = ledger.call("resume_brief", topic_id=tid)
+    assert list(fresh) == ["where_we_left_off", "recap_checks", "new_findings", "next_agenda_item"]
+    assert fresh["next_agenda_item"] is None
+    assert fresh["where_we_left_off"]["summary"] is None
+    items = ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=["A", "B", "C"])["items"]
+    ledger.call("agenda_done", session_id=sid, item_id=items[0]["id"])
+    ledger.call("session_bookmark", session_id=sid, agenda_item_id=items[2]["id"], note="at C")
+    ledger.call("session_end", session_id=sid, summary="Covered A.")
+    ledger.call("session_start", topic_id=tid)  # a later, empty session must not hide the bookmark
+    got = ledger.call("resume_brief", topic_id=tid)
+    assert (got["recap_checks"], got["new_findings"]) == ([], [])
+    assert got["where_we_left_off"]["summary"] == "Covered A."
+    assert got["where_we_left_off"]["bookmark_note"] == "at C"
+    assert got["next_agenda_item"]["facet"] == "C"  # the bookmark wins over the first open item
+
+
+def test_park_search_and_resume_a_question(ledger: Ledger) -> None:
+    tid, sid = _session(ledger)
+    q = ledger.call(
+        "question_record", session_id=sid, topic_id=tid, asker="user",
+        text="  does the   GIL affect numpy? ",
+    )  # fmt: skip
+    assert (q["status"], q["clean_text"], q["session_id"]) == (
+        "open",
+        "does the GIL affect numpy?",
+        sid,
+    )
+    assert [o["id"] for o in ledger.call("map_get", topic_id=tid)["open_questions"]] == [q["id"]]
+    assert ledger.call("parked_search", text="numpy GIL")["questions"] == []  # still open
+    assert ledger.call("question_park", session_id=sid, question_id=q["id"])["status"] == "parked"
+    assert ledger.call("map_get", topic_id=tid)["open_questions"] == []
+    found = ledger.call("parked_search", text="numpy and the GIL")["questions"]
+    assert [f["id"] for f in found] == [q["id"]]
+    assert [p["id"] for p in ledger.call("parked_list", topic_id=tid)["questions"]] == [q["id"]]
+
+
+def test_child_topic_round_trip_bookmarks_parent_and_returns_to_it(ledger: Ledger) -> None:
+    tid, sid = _session(ledger)
+    ledger.call(
+        "charter_write", session_id=sid, topic_id=tid, core_questions=["why"], in_scope=["a", "b"],
+        parked=[], done_when="explain asyncio",
+    )  # fmt: skip
+    items = ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=["a", "b"])["items"]
+    q = ledger.call(
+        "question_record",
+        session_id=sid,
+        topic_id=tid,
+        asker="user",
+        text="how does CPython free memory?",
+    )
+    made = ledger.call("child_topic_create", session_id=sid, parent_id=tid, question_id=q["id"])
+    child = made["child"]
+    assert (child["parent_topic_id"], child["status"]) == (tid, "active")
+    assert made["charter"]["done_when"] == "explain asyncio"
+    assert made["charter"]["core_questions"] == ["how does CPython free memory?"]
+    assert made["session"]["topic_id"] == child["id"]
+    back = ledger.call("child_topic_finish", child_id=child["id"], session_id=sid)
+    assert (back["parent_topic_id"], back["session_id"], back["agenda_facet"]) == (tid, sid, "a")
+    assert back["bookmark"]["question_id"] == q["id"]
+    assert back["bookmark"]["agenda_item_id"] == items[0]["id"]
+    assert ledger.call("topic_get", topic_id=child["id"])["status"] == "finished"
+    assert (
+        ledger.call("child_topic_finish", child_id=child["id"], session_id=sid)["error"]
+        == "invalid_input"
+    )
+    assert (
+        ledger.call("child_topic_finish", child_id=tid, session_id=sid)["error"] == "invalid_input"
+    )
+
+
+def test_inside_a_child_questions_go_to_the_parents_frontier_and_children_stop(
+    ledger: Ledger,
+) -> None:
+    tid, sid = _session(ledger)
+    ledger.call(
+        "charter_write", session_id=sid, topic_id=tid, core_questions=["why"], in_scope=["a"],
+        parked=[], done_when="d",
+    )  # fmt: skip
+    q = ledger.call("question_record", session_id=sid, topic_id=tid, asker="user", text="side q")
+    child = ledger.call("child_topic_create", session_id=sid, parent_id=tid, question_id=q["id"])
+    cid, csid = child["child"]["id"], child["session"]["id"]
+    deeper = ledger.call(
+        "question_record", session_id=csid, topic_id=cid, asker="user", text="deep"
+    )
+    refused = ledger.call(
+        "child_topic_create", session_id=csid, parent_id=cid, question_id=deeper["id"]
+    )
+    assert refused["error"] == "child_depth_exceeded"
+    assert ledger.count("topic") == 2
+    frontier = ledger.call("frontier_add", session_id=csid, topic_id=tid, question_id=deeper["id"])
+    assert [f["id"] for f in frontier["frontier"]] == [deeper["id"]]
+    ledger.call(
+        "frontier_add", session_id=csid, topic_id=tid, question_id=deeper["id"]
+    )  # idempotent
+    assert [f["id"] for f in ledger.call("map_get", topic_id=tid)["frontier"]] == [deeper["id"]]
+
+
+def test_topic_recap_returns_every_section_in_order(ledger: Ledger) -> None:
+    tid, sid = _session(ledger)
+    ledger.call(
+        "charter_write", session_id=sid, topic_id=tid, core_questions=["why?"],
+        in_scope=["a"], parked=["b"], done_when="can explain",
+    )  # fmt: skip
+    ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=["what"])
+    src = ledger.call("source_register", session_id=sid, url="https://e.org/a", kind="docs", tier=1)
+    ledger.call(
+        "claim_add", session_id=sid, topic_id=tid, text="c1", source_ids=[src["id"]],
+        excerpt_summary="x",
+    )  # fmt: skip
+    ledger.call("session_bookmark", session_id=sid, note="at what")
+    ledger.call("session_end", session_id=sid, summary="first" + "x" * 700)
+    ledger.call("session_start", topic_id=tid)
+    child = ledger.call("topic_create", title="Child", parent_topic_id=tid)
+    for text in ("open one", "answered one"):
+        q = ledger.call("question_record", session_id=sid, topic_id=tid, asker="user", text=text)
+    ledger.call("question_answer", session_id=sid, question_id=q["id"], summary="42")
+    got = ledger.call("topic_recap", topic_id=tid)
+    assert got["topic"]["id"] == tid and got["charter"]["done_when"] == "can explain"
+    assert [a["facet"] for a in got["agenda"]] == ["what"]
+    first, second = got["sessions"]
+    assert second["summary"] is None and first["bookmark_note"] == "at what"
+    assert first["summary"].endswith("...") and got["truncated"] is True
+    assert got["claims"][0]["sources"] == [{"id": src["id"], "url": "https://e.org/a"}]
+    assert [x["text"] for x in got["questions"]["open"]] == ["open one"]
+    assert got["questions"]["answered"][0]["answer_summary"] == "42"
+    assert got["children"] == [{"title": child["title"], "status": child["status"]}]
+
+
+@pytest.mark.parametrize(
+    "title", ["../../etc/passwd", "/abs/x", "日本語", "A" * 200, "..", "a/b\\c"]
+)
+def test_recap_save_stays_inside_recaps(ledger: Ledger, title: str) -> None:
+    topic = ledger.call("topic_create", title=title)
+    sid = ledger.call("session_start", topic_id=topic["id"])["id"]
+    args = {"session_id": sid, "topic_id": topic["id"]}
+    saved = ledger.call("recap_save", **args, markdown="# one")
+    path = (ledger.paths.root / saved["path"]).resolve()
+    assert path.parent == ledger.paths.recaps.resolve() and path.read_text() == "# one"
+    assert saved["bytes"] == 5 and len(path.name) < 70
+    ledger.call("recap_save", **args, markdown="# two")  # same topic, same day overwrites
+    assert path.read_text() == "# two" and len(list(ledger.paths.recaps.iterdir())) == 1
+
+
+def test_recap_save_keeps_same_titled_topics_apart(ledger: Ledger) -> None:
+    sid = _session(ledger)[1]
+    for title in ("Same", "Same"):
+        tid = ledger.call("topic_create", title=title)["id"]
+        ledger.call("recap_save", session_id=sid, topic_id=tid, markdown=f"# {tid}")
+    assert len(list(ledger.paths.recaps.iterdir())) == 2
+
+
+def _chartered(ledger: Ledger, facets: list[str]) -> tuple[str, str, list[dict[str, Any]]]:
+    tid, sid = _session(ledger)
+    ledger.call(
+        "charter_write", session_id=sid, topic_id=tid, core_questions=["why"], in_scope=facets,
+        parked=[], done_when="d",
+    )  # fmt: skip
+    items = ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=facets)["items"]
+    return tid, sid, items
+
+
+def _ask(ledger: Ledger, sid: str, tid: str, text: str) -> str:
+    q = ledger.call("question_record", session_id=sid, topic_id=tid, asker="user", text=text)
+    return str(q["id"])
+
+
+def test_resume_brief_falls_back_when_the_bookmarked_item_is_done(ledger: Ledger) -> None:
+    tid, sid, items = _chartered(ledger, ["A", "B"])
+    ledger.call("session_bookmark", session_id=sid, agenda_item_id=items[1]["id"], note="at B")
+    ledger.call("agenda_done", session_id=sid, item_id=items[1]["id"])
+    got = ledger.call("resume_brief", topic_id=tid)
+    assert got["next_agenda_item"]["facet"] == "A"
+
+
+def test_child_topic_create_refusals_and_note_survive(ledger: Ledger) -> None:
+    tid, sid, _ = _chartered(ledger, ["a"])
+    other, osid = _session(ledger)
+    ledger.call("charter_write", session_id=osid, topic_id=other, core_questions=["w"],
+                in_scope=[], parked=[], done_when="d")  # fmt: skip
+    bare, bsid = _session(ledger)  # no charter
+    q1, q2 = _ask(ledger, sid, tid, "one"), _ask(ledger, sid, tid, "two")
+    foreign, bare_q = _ask(ledger, osid, other, "far"), _ask(ledger, bsid, bare, "bare")
+    ledger.call("session_bookmark", session_id=sid, note="mine")
+    parked = _ask(ledger, sid, tid, "parked")
+    ledger.call("question_park", session_id=sid, question_id=parked)
+    refused = [
+        (osid, tid, q1), (sid, tid, foreign), (sid, tid, parked), (bsid, bare, bare_q),
+    ]  # fmt: skip
+    for session_id, parent_id, question_id in refused:
+        got = ledger.call(
+            "child_topic_create", session_id=session_id, parent_id=parent_id,
+            question_id=question_id,
+        )  # fmt: skip
+        assert got["error"] in {"invalid_input", "charter_not_found"}, got
+    assert ledger.count("topic") == 3
+    made = ledger.call("child_topic_create", session_id=sid, parent_id=tid, question_id=q1)
+    cid, csid = made["child"]["id"], made["session"]["id"]
+    assert ledger.call("question_get", question_id=q1)["status"] == "partial"
+    assert [o["id"] for o in ledger.call("map_get", topic_id=tid)["open_questions"]] == [q2]
+    again = ledger.call("child_topic_create", session_id=sid, parent_id=tid, question_id=q2)
+    assert again["error"] == "invalid_input"  # unfinished child
+    wrong = ledger.call("child_topic_finish", child_id=cid, session_id=csid)
+    assert wrong["error"] == "invalid_input"
+    back = ledger.call("child_topic_finish", child_id=cid, session_id=sid)
+    assert back["bookmark"]["note"] == "mine"
+
+
+def test_frontier_add_and_question_park_refuse_foreign_questions(ledger: Ledger) -> None:
+    tid, sid = _session(ledger)
+    other, osid = _session(ledger)
+    foreign, mine = _ask(ledger, osid, other, "far"), _ask(ledger, sid, tid, "near")
+    assert (
+        ledger.call("frontier_add", session_id=sid, topic_id=tid, question_id=foreign)["error"]
+        == "invalid_input"
+    )
+    assert ledger.call("question_park", session_id=sid, question_id=foreign)["error"] == (
+        "invalid_input"
+    )
+    assert ledger.call("question_park", session_id=sid, question_id=MISSING)["error"] == (
+        "question_not_found"
+    )
+    ledger.call("question_park", session_id=sid, question_id=mine)
+    assert ledger.call("question_park", session_id=sid, question_id=mine)["error"] == (
+        "invalid_input"
+    )  # no longer open
+    bad = ledger.call("question_record", session_id=sid, topic_id=other, asker="user", text="x")
+    assert bad["error"] == "invalid_input"

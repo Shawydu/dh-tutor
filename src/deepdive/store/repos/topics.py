@@ -4,7 +4,7 @@ from uuid import UUID
 from deepdive.store.enums import TopicStatus
 from deepdive.store.errors import ChildDepthError, TopicNotFoundError
 from deepdive.store.ids import new_id
-from deepdive.store.models import Topic, TopicNode
+from deepdive.store.models import Topic, TopicNode, TopicOverview, TopicStats
 from deepdive.store.repos._common import many, one, require
 
 
@@ -79,3 +79,29 @@ def pin(conn: sqlite3.Connection, topic_id: UUID) -> Topic:
 
 def unpin(conn: sqlite3.Connection, topic_id: UUID) -> Topic:
     return _set_pinned(conn, topic_id, False)
+
+
+def overview(conn: sqlite3.Connection) -> list[TopicOverview]:
+    """Top-level topics (pinned first) with per-topic counts and their children, in one query."""
+    rows = conn.execute(
+        "SELECT id, title, parent_topic_id, status, pinned,"
+        " (SELECT MAX(version) FROM charter WHERE topic_id = t.id),"
+        " (SELECT COUNT(*) FROM agenda_item WHERE topic_id = t.id AND status = 'done'),"
+        " (SELECT COUNT(*) FROM agenda_item WHERE topic_id = t.id),"
+        " (SELECT COUNT(*) FROM question WHERE topic_id = t.id AND status = 'open'),"
+        " (SELECT COUNT(*) FROM question WHERE topic_id = t.id AND status = 'parked'),"
+        " (SELECT MAX(started_at) FROM session WHERE topic_id = t.id)"
+        " FROM topic t ORDER BY pinned DESC, id"
+    ).fetchall()
+    stats = [
+        TopicStats.model_validate(dict(zip(TopicStats.model_fields, r, strict=True))) for r in rows
+    ]
+    children: dict[UUID, list[TopicStats]] = {}
+    for s in stats:
+        if s.parent_topic_id is not None:
+            children.setdefault(s.parent_topic_id, []).append(s)
+    return [
+        TopicOverview(**s.model_dump(), children=children.get(s.id, []))
+        for s in stats
+        if s.parent_topic_id is None
+    ]

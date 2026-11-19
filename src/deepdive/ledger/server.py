@@ -16,7 +16,7 @@ from deepdive.config import Secrets, load_config
 from deepdive.domain_packs import load_pack
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
-from deepdive.ledger.tools import agenda, charters, claims, questions, sessions, topics, web
+from deepdive.ledger.tools import agenda, charters, claims, questions, recaps, sessions, topics, web
 from deepdive.paths import Paths
 from deepdive.store.db import connect, migrate
 from deepdive.store.errors import StoreError
@@ -97,7 +97,7 @@ def create_server(
     migrate(conn)
     ctx = LedgerContext(conn=conn, paths=paths)
     server = LedgerServer(ctx)
-    for module in (topics, charters, sessions, agenda, claims, questions):
+    for module in (topics, charters, sessions, agenda, claims, questions, recaps):
         module.register(server, ctx)
     config = load_config(paths.config)
     web.register(server, ctx, config, load_pack(config.domain.pack), Secrets.from_env(), transport)

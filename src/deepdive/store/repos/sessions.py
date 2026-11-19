@@ -10,7 +10,7 @@ from deepdive.store.errors import (
 )
 from deepdive.store.ids import new_id
 from deepdive.store.models import Bookmark, Session
-from deepdive.store.repos._common import one, require
+from deepdive.store.repos._common import many, one, require
 
 
 def start(conn: sqlite3.Connection, topic_id: UUID, *, at: datetime) -> Session:
@@ -64,11 +64,18 @@ def end(conn: sqlite3.Connection, session_id: UUID, summary: str, *, at: datetim
     return _must_get(conn, session_id)
 
 
-def latest(conn: sqlite3.Connection, topic_id: UUID) -> Session | None:
+def latest(conn: sqlite3.Connection, topic_id: UUID, *, recorded: bool = False) -> Session | None:
+    """The newest session; with `recorded`, the newest that has a summary or a bookmark."""
+    where = "AND (summary IS NOT NULL OR bookmark IS NOT NULL) " if recorded else ""
     return one(
         conn,
         Session,
         "session",
-        "WHERE topic_id = ? ORDER BY started_at DESC, id DESC",
+        f"WHERE topic_id = ? {where}ORDER BY started_at DESC, id DESC",
         (topic_id,),
     )
+
+
+def list_for_topic(conn: sqlite3.Connection, topic_id: UUID) -> list[Session]:
+    """Every session of the topic, oldest first."""
+    return many(conn, Session, "session", "WHERE topic_id = ? ORDER BY started_at, id", (topic_id,))

@@ -31,6 +31,10 @@ class Paths:
         return self.root / "digests"
 
     @property
+    def recaps(self) -> Path:
+        return self.root / "recaps"
+
+    @property
     def poc(self) -> Path:
         return self.root / "poc"
 
@@ -48,5 +52,13 @@ class Paths:
 
     def ensure_dirs(self) -> None:
         """Create the root and every folder under it that is missing."""
-        for folder in (self.root, self.digests, self.poc, self.workspace, self.logs, self.cache):
+        for folder in (
+            self.root,
+            self.digests,
+            self.recaps,
+            self.poc,
+            self.workspace,
+            self.logs,
+            self.cache,
+        ):
             folder.mkdir(parents=True, exist_ok=True)

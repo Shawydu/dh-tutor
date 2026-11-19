@@ -1,5 +1,7 @@
 import sqlite3
 from importlib import metadata
+from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -27,6 +29,28 @@ def mcp_serve() -> None:
     from deepdive.ledger.server import create_server  # keeps `deepdive version` from loading mcp
 
     create_server().run("stdio")
+
+
+@app.command("init")
+def init(
+    workspace: Annotated[Path | None, typer.Option(help="Default: <home>/workspace.")] = None,
+    check: Annotated[bool, typer.Option("--check", help="Report drift; change nothing.")] = False,
+) -> None:
+    """Generate the Claude Code workspace, or with --check report generated files that drifted."""
+    from deepdive.adapters.claude_code.install import InstallError, drift, install
+
+    target = workspace or Paths.from_env().workspace
+    if check:
+        stale = drift(target)
+        for rel in stale:
+            typer.echo(f"drift: {rel}")
+        raise typer.Exit(1 if stale else 0)
+    try:
+        changed = install(target)
+    except InstallError as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from err
+    typer.echo(f"{target}: updated {', '.join(changed)}" if changed else f"{target}: up to date")
 
 
 @app.command("version")

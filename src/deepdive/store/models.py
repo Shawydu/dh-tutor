@@ -40,6 +40,21 @@ class TopicNode(Topic):
     children: list[Topic] = Field(default_factory=list)
 
 
+class TopicStats(Topic):
+    """A topic with the counts `/topics` shows."""
+
+    charter_version: int | None
+    agenda_done: int
+    agenda_total: int
+    open_questions: int
+    parked_questions: int
+    last_session_at: AwareDatetime | None
+
+
+class TopicOverview(TopicStats):
+    children: list[TopicStats] = Field(default_factory=list)
+
+
 class Charter(BaseModel):
     topic_id: UUID
     version: int

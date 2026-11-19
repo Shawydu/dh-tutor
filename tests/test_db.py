@@ -43,6 +43,7 @@ DESIGN_TABLES = {
     "knowledge_state",
     "knowledge_evidence",
     "poc_project",
+    "frontier",  # 0002
 }
 # every column that holds a closed set of values, and the lookup table it references
 ENUM_COLUMNS = [
@@ -120,10 +121,12 @@ def test_columns_follow_the_type_conventions(db: sqlite3.Connection) -> None:
 
 def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
     conn = connect(tmp_path / "twice.db")
-    assert migrate(conn) == ["0001_init"]
+    assert migrate(conn) == ["0001_init", "0002_frontier", "0003_activate_chartered_topics"]
     assert migrate(conn) == []
     assert conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
-        (1, "0001_init")
+        (1, "0001_init"),
+        (2, "0002_frontier"),
+        (3, "0003_activate_chartered_topics"),
     ]
 
 

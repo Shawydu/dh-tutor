@@ -118,3 +118,16 @@ def test_fts_limit_and_empty_database(db: sqlite3.Connection, seed_topics: Seed)
 
 def test_fts_on_an_empty_registry(db: sqlite3.Connection) -> None:
     assert questions.fts_candidates(db, ACCEPTANCE_QUERY) == []
+
+
+def test_fts_status_filter_and_list_by_status(db: sqlite3.Connection, seed_topics: Seed) -> None:
+    gil = seed_topics.questions["locks_needed"]
+    questions.park(db, gil)
+    hits = questions.fts_candidates(db, "locks", status=QuestionStatus.PARKED)
+    assert [q.id for q in hits] == [gil]
+    assert questions.fts_candidates(db, "locks", status=QuestionStatus.PARTIAL) == []
+    topic = seed_topics.topics[next(iter(seed_topics.topics))]
+    assert all(
+        q.status == QuestionStatus.OPEN
+        for q in questions.list_by_status(db, topic, QuestionStatus.OPEN)
+    )

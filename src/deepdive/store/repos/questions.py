@@ -98,8 +98,24 @@ def list_parked(conn: sqlite3.Connection, topic_id: UUID | None = None) -> list[
     )
 
 
-def fts_candidates(conn: sqlite3.Connection, text: str, limit: int = 10) -> list[Question]:
+def list_by_status(
+    conn: sqlite3.Connection, topic_id: UUID, status: QuestionStatus
+) -> list[Question]:
+    return many(
+        conn,
+        Question,
+        "question",
+        "WHERE topic_id = ? AND status = ? ORDER BY id",
+        (topic_id, status),
+    )
+
+
+def fts_candidates(
+    conn: sqlite3.Connection, text: str, limit: int = 10, *, status: QuestionStatus | None = None
+) -> list[Question]:
     """The questions, from all topics, that share the most (rarest) words with `text`, best first.
+
+    With `status`, only questions in that status.
 
     Free text is reduced to word tokens, so punctuation and FTS operators in it cannot break the
     MATCH; text with no usable word returns []. Ranking is bm25 over the porter-stemmed index.
@@ -112,6 +128,7 @@ def fts_candidates(conn: sqlite3.Connection, text: str, limit: int = 10) -> list
         Question,
         "question",
         "JOIN question_fts ON question_fts.question_id = question.id"
-        " WHERE question_fts MATCH ? ORDER BY bm25(question_fts), question.id LIMIT ?",
-        (query, limit),
+        " WHERE question_fts MATCH ? AND (? IS NULL OR question.status = ?)"
+        " ORDER BY bm25(question_fts), question.id LIMIT ?",
+        (query, status, status, limit),
     )
