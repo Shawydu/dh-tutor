@@ -4,7 +4,7 @@ from mcp.server.mcpserver import MCPServer
 
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.limits import Id, Title
-from deepdive.store.repos import agenda, charters, claims, evidence, topics
+from deepdive.store.repos import agenda, charters, claims, evidence, sources, topics
 
 
 def register(server: MCPServer[None], ctx: LedgerContext) -> None:
@@ -36,12 +36,14 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
 
     @server.tool()
     async def map_get(topic_id: Id) -> dict[str, Any]:
-        """Compact map: latest charter (or null), agenda with status, claims with source ids."""
+        """Compact map: latest charter (or null), agenda with status, claims with cited sources."""
         ctx.require_topic(topic_id)
         charter = charters.get_latest(ctx.conn, topic_id)
-        cited: dict[str, list[str]] = {}
+        cited: dict[str, dict[str, dict[str, str | None]]] = {}
         for e in evidence.list_for_topic(ctx.conn, topic_id):
-            cited.setdefault(str(e.claim_id), []).append(str(e.source_id))
+            s = sources.get(ctx.conn, e.source_id)
+            sid = str(e.source_id)
+            cited.setdefault(str(e.claim_id), {})[sid] = {"id": sid, "url": s.url if s else None}
         return {
             "charter": charter.model_dump(mode="json") if charter else None,
             "agenda": [
@@ -53,7 +55,7 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
                     "id": str(c.id),
                     "text": c.text,
                     "status": c.status,
-                    "source_ids": list(dict.fromkeys(cited.get(str(c.id), []))),
+                    "sources": list(cited.get(str(c.id), {}).values()),
                 }
                 for c in claims.list_for_topic(ctx.conn, topic_id)
             ],

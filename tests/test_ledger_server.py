@@ -347,6 +347,6 @@ def test_map_get_returns_charter_agenda_progress_and_claims(ledger: Ledger) -> N
         ("GIL", "done"),
         ("asyncio", "open"),
     ]
-    assert [(c["text"], c["source_ids"]) for c in got["claims"]] == [
-        ("GIL serialises", [src["id"]])
+    assert [(c["text"], c["sources"]) for c in got["claims"]] == [
+        ("GIL serialises", [{"id": src["id"], "url": "https://e.com/a"}])
     ]
