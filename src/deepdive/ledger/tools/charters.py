@@ -5,7 +5,6 @@ from mcp.server.mcpserver import MCPServer
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.limits import Id, Items, Text, Version
 from deepdive.store.errors import CharterNotFoundError
-from deepdive.store.repos import charters
 
 
 def register(server: MCPServer[None], ctx: LedgerContext) -> None:
@@ -19,8 +18,7 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
         done_when: Text,
     ) -> dict[str, Any]:
         """Store a new charter version for the topic (1 first, then one more each time)."""
-        return charters.write(
-            ctx.conn,
+        return ctx.store.charters.write(
             topic_id,
             core_questions=core_questions,
             in_scope=in_scope,
@@ -34,9 +32,9 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
         """The topic's latest charter, or the given version."""
         ctx.require_topic(topic_id)
         found = (
-            charters.get_latest(ctx.conn, topic_id)
+            ctx.store.charters.get_latest(topic_id)
             if version is None
-            else charters.get_version(ctx.conn, topic_id, version)
+            else ctx.store.charters.get_version(topic_id, version)
         )
         if found is None:
             which = "has no charter yet" if version is None else f"has no charter version {version}"

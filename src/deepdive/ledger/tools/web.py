@@ -16,7 +16,6 @@ from deepdive.search.budget import Budget
 from deepdive.search.fetch import FetchError, fetch_text
 from deepdive.search.github import GitHub
 from deepdive.search.hn import HackerNews
-from deepdive.store.repos import sources
 
 
 def register(
@@ -39,8 +38,7 @@ def register(
         )
 
     def source_id(url: str, tier_key: str, session_id: Id | None) -> str:
-        row = sources.register(
-            ctx.conn,
+        row = ctx.store.sources.register(
             url=url,
             kind=tier_key,
             tier=pack.source_tiers[tier_key],

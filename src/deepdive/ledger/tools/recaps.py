@@ -8,7 +8,6 @@ from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Id, Markdown
 from deepdive.ledger.tools.topics import claims_with_sources
 from deepdive.store.enums import QuestionStatus
-from deepdive.store.repos import agenda, charters, questions, sessions, topics
 
 CUT = 600  # chars kept of any one free-text field in a recap
 
@@ -28,15 +27,15 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
                 return text[:CUT] + "..."
             return text
 
-        topic = topics.get(ctx.conn, topic_id)
-        charter = charters.get_latest(ctx.conn, topic_id)
-        node = next((n for n in topics.list_all(ctx.conn) if n.id == topic_id), None)
+        topic = ctx.store.topics.get(topic_id)
+        charter = ctx.store.charters.get_latest(topic_id)
+        node = next((n for n in ctx.store.topics.list_all() if n.id == topic_id), None)
         result = {
             "topic": topic.model_dump(mode="json") if topic else None,
             "charter": charter.model_dump(mode="json") if charter else None,
             "agenda": [
                 {"facet": i.facet, "status": i.status}
-                for i in agenda.list_items(ctx.conn, topic_id)
+                for i in ctx.store.agenda.list_items(topic_id)
             ],
             "sessions": [
                 {
@@ -45,13 +44,13 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
                     "summary": cut(s.summary),
                     "bookmark_note": cut(s.bookmark.note if s.bookmark else None),
                 }
-                for s in sessions.list_for_topic(ctx.conn, topic_id)
+                for s in ctx.store.sessions.list_for_topic(topic_id)
             ],
             "claims": [{**c, "text": cut(c["text"])} for c in claims_with_sources(ctx, topic_id)],
             "questions": {
                 status.value: [
                     {"text": cut(q.clean_text), "answer_summary": cut(q.answer_summary)}
-                    for q in questions.list_by_status(ctx.conn, topic_id, status)
+                    for q in ctx.store.questions.list_by_status(topic_id, status)
                 ]
                 for status in QuestionStatus
             },

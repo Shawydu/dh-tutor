@@ -7,14 +7,13 @@ from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Id, Summary, Text
 from deepdive.store.enums import QuestionAsker, QuestionStatus
 from deepdive.store.errors import QuestionNotFoundError
-from deepdive.store.repos import questions
 
 
 def register(server: MCPServer[None], ctx: LedgerContext) -> None:
     @server.tool()
     async def question_get(question_id: Id) -> dict[str, Any]:
         """One question: asker, text, status and answer summary."""
-        question = questions.get(ctx.conn, question_id)
+        question = ctx.store.questions.get(question_id)
         if question is None:
             raise QuestionNotFoundError(question_id)
         return question.model_dump(mode="json")
@@ -27,20 +26,20 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
         if ctx.require_session(session_id).topic_id != topic_id:
             raise InvalidInputError("topic_id must be the session's topic")
         clean = " ".join(text.split())
-        return questions.add(
-            ctx.conn, topic_id, asker, text, clean, session_id=session_id
+        return ctx.store.questions.add(
+            topic_id, asker, text, clean, session_id=session_id
         ).model_dump(mode="json")
 
     @server.tool()
     async def question_park(session_id: Id, question_id: Id) -> dict[str, Any]:
         """Park a question: it leaves the walkthrough and can be found again with parked_list."""
         session = ctx.require_session(session_id)
-        question = questions.get(ctx.conn, question_id)
+        question = ctx.store.questions.get(question_id)
         if question is None:
             raise QuestionNotFoundError(question_id)
         if question.status != QuestionStatus.OPEN or question.topic_id != session.topic_id:
             raise InvalidInputError("only an open question of the session's topic can be parked")
-        return questions.park(ctx.conn, question_id).model_dump(mode="json")
+        return ctx.store.questions.park(question_id).model_dump(mode="json")
 
     @server.tool()
     async def question_answer(
@@ -51,8 +50,8 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
     ) -> dict[str, Any]:
         """Store the answer summary for a question and set its status (default: answered)."""
         ctx.require_session(session_id)
-        return questions.set_answer_summary(
-            ctx.conn, question_id, summary, status=status
+        return ctx.store.questions.set_answer_summary(
+            question_id, summary, status=status
         ).model_dump(mode="json")
 
     @server.tool()
@@ -62,12 +61,12 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
             ctx.require_topic(topic_id)
         return {
             "questions": [
-                q.model_dump(mode="json") for q in questions.list_parked(ctx.conn, topic_id)
+                q.model_dump(mode="json") for q in ctx.store.questions.list_parked(topic_id)
             ]
         }
 
     @server.tool()
     async def parked_search(text: Text) -> dict[str, Any]:
         """Parked questions, from all topics, that best match the words in text."""
-        found = questions.fts_candidates(ctx.conn, text, status=QuestionStatus.PARKED)
+        found = ctx.store.questions.fts_candidates(text, status=QuestionStatus.PARKED)
         return {"questions": [q.model_dump(mode="json") for q in found]}

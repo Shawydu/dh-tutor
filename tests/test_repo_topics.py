@@ -1,4 +1,4 @@
-import sqlite3
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import pytest
@@ -7,75 +7,93 @@ from conftest import Seed
 from deepdive.store.enums import TopicStatus
 from deepdive.store.errors import ChildDepthError, TopicNotFoundError
 from deepdive.store.ids import new_id
-from deepdive.store.repos import agenda, sessions, topics
+from deepdive.store.repos import Store
+from deepdive.store.repos.topics import TopicRepo
 
 
-def test_create_get_and_default_status(db: sqlite3.Connection) -> None:
-    created = topics.create(db, "Threads")
+def test_create_get_and_default_status(store: Store) -> None:
+    """create stores a topic with default scoping status and get returns it."""
+    created = store.topics.create("Threads")
     assert (created.title, created.status, created.pinned) == (
         "Threads",
         TopicStatus.SCOPING,
         False,
     )
     assert created.parent_topic_id is None
-    assert topics.get(db, created.id) == created
-    assert topics.get(db, new_id()) is None
+    assert store.topics.get(created.id) == created
+    assert store.topics.get(new_id()) is None
 
 
-def test_list_all_nests_children_and_puts_pinned_first(db: sqlite3.Connection) -> None:
-    first = topics.create(db, "First")
-    second = topics.create(db, "Second")
-    child = topics.create(db, "Child of second", parent_topic_id=second.id)
-    assert [t.id for t in topics.list_all(db)] == [first.id, second.id]
-    topics.pin(db, second.id)
-    listed = topics.list_all(db)
+def test_list_all_nests_children_and_puts_pinned_first(store: Store) -> None:
+    """list_all nests children under parents and lists pinned topics first."""
+    first = store.topics.create("First")
+    second = store.topics.create("Second")
+    child = store.topics.create("Child of second", parent_topic_id=second.id)
+    assert [t.id for t in store.topics.list_all()] == [first.id, second.id]
+    store.topics.pin(second.id)
+    listed = store.topics.list_all()
     assert [t.id for t in listed] == [second.id, first.id]
     assert [c.id for c in listed[0].children] == [child.id]
     assert listed[1].children == []
-    assert topics.unpin(db, second.id).pinned is False
+    assert store.topics.unpin(second.id).pinned is False
 
 
-def test_set_status(db: sqlite3.Connection) -> None:
-    topic = topics.create(db, "Threads")
-    assert topics.set_status(db, topic.id, TopicStatus.ACTIVE).status == "active"
+def test_set_status(store: Store) -> None:
+    """set_status changes a topic's status."""
+    topic = store.topics.create("Threads")
+    assert store.topics.set_status(topic.id, TopicStatus.ACTIVE).status == "active"
 
 
-def test_unknown_topic_is_a_typed_error(db: sqlite3.Connection) -> None:
+type Call = Callable[[Store], object]
+
+CASES: list[Call] = [
+    lambda s: s.topics.set_status(new_id(), TopicStatus.ACTIVE),
+    lambda s: s.topics.pin(new_id()),
+    lambda s: s.topics.create("Orphan", parent_topic_id=new_id()),
+]
+
+
+@pytest.mark.parametrize(
+    "call",
+    CASES,
+    ids=["set-status", "pin", "create-under-unknown-parent"],
+)
+def test_unknown_topic_is_a_typed_error(store: Store, call: Call) -> None:
+    """Changing or parenting under a missing topic raises TopicNotFoundError."""
     with pytest.raises(TopicNotFoundError):
-        topics.set_status(db, new_id(), TopicStatus.ACTIVE)
-    with pytest.raises(TopicNotFoundError):
-        topics.pin(db, new_id())
-    with pytest.raises(TopicNotFoundError):
-        topics.create(db, "Orphan", parent_topic_id=new_id())
+        call(store)
 
 
-def test_child_of_a_child_is_refused(db: sqlite3.Connection) -> None:
-    parent = topics.create(db, "Parent")
-    child = topics.create(db, "Child", parent_topic_id=parent.id)
+def test_child_of_a_child_is_refused(store: Store) -> None:
+    """A grandchild topic is refused and nothing is stored."""
+    parent = store.topics.create("Parent")
+    child = store.topics.create("Child", parent_topic_id=parent.id)
     with pytest.raises(ChildDepthError):
-        topics.create(db, "Grandchild", parent_topic_id=child.id)
-    assert [t.title for t in topics.list_all(db)] == ["Parent"]
-    assert len(topics.list_all(db)[0].children) == 1
+        store.topics.create("Grandchild", parent_topic_id=child.id)
+    assert [t.title for t in store.topics.list_all()] == ["Parent"]
+    assert len(store.topics.list_all()[0].children) == 1
 
 
 def test_db_trigger_error_becomes_child_depth_error_too(
-    db: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
+    store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    parent = topics.create(db, "Parent")
-    child = topics.create(db, "Child", parent_topic_id=parent.id)
-    monkeypatch.setattr(topics, "_check_parent", lambda conn, parent_id: None)
+    """The DB trigger's error also surfaces as ChildDepthError."""
+    parent = store.topics.create("Parent")
+    child = store.topics.create("Child", parent_topic_id=parent.id)
+    monkeypatch.setattr(TopicRepo, "_check_parent", lambda self, parent_id: None)
     with pytest.raises(ChildDepthError):
-        topics.create(db, "Grandchild", parent_topic_id=child.id)
+        store.topics.create("Grandchild", parent_topic_id=child.id)
 
 
-def test_overview_counts_on_seeded_topics(db: sqlite3.Connection, seed_topics: Seed) -> None:
+def test_overview_counts_on_seeded_topics(store: Store, seed_topics: Seed) -> None:
+    """overview reports agenda, question, charter and session counts for top-level topics."""
     py, ice = seed_topics.topics["python-concurrency"], seed_topics.topics["iceberg"]
-    first = agenda.list_items(db, py)[0]
-    agenda.mark_done(db, first.id)
-    session = sessions.start(db, py, at=datetime(2026, 2, 3, 4, 5, 6, tzinfo=UTC))
-    child = topics.create(db, "GIL deep dive", parent_topic_id=py)
-    topics.pin(db, ice)
-    got = topics.overview(db)
+    first = store.agenda.list_items(py)[0]
+    store.agenda.mark_done(first.id)
+    session = store.sessions.start(py, at=datetime(2026, 2, 3, 4, 5, 6, tzinfo=UTC))
+    child = store.topics.create("GIL deep dive", parent_topic_id=py)
+    store.topics.pin(ice)
+    got = store.topics.overview()
     assert [t.id for t in got] == [ice, py]  # pinned first; the child is not top level
     by_id = {t.id: t for t in got}
     assert (by_id[py].agenda_done, by_id[py].agenda_total) == (1, 4)

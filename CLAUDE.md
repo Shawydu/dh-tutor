@@ -51,14 +51,28 @@ SQLite has no UUID, timestamp or enum types. The schema declares them by name, e
 
 - Test behaviour: functions (unit) and integrations (real SQLite, in-process MCP client, stdio server). Nothing else.
 - Do not test over tests: no tests of fixtures, helpers or other tests, no second test for a behaviour another test already pins, no mock-heavy tests that restate the implementation.
-- Keep existing unit tests intact. Change one only when the behaviour it covers changes, and say so in the report.
+- Keep existing unit tests intact. Change one only when the behaviour it covers changes, or to apply the shape rules below, and say so in the report.
+- Group correlated cases with `pytest.mark.parametrize` (readable `ids=`) instead of copy-pasted tests or loops inside one test.
+- Every test function has a one-line docstring saying what behaviour it pins.
+- No bloated mocks: use the real thing (temp SQLite, in-process MCP client, recorded HTTP fixtures, fake classifier). Fake only at a process or network boundary, and only the narrowest seam.
+- Contain test boundaries: a test exercises one layer through its public interface (repo tests call repos, ledger tests call tools through the MCP client). Set up state with the layer's own API or shared fixtures, not by reaching into another layer's internals.
+
+## Code structure: classes over module functions
+
+New features follow this pattern, and older modules are moved onto it one module per step (done: `store/repos`; next: `ledger/tools`, then `LedgerContext`).
+
+- A module's behaviour lives in a class that holds its context (a connection, `Paths`, config) in `__init__`; methods don't take that context as a parameter.
+- What sibling classes share goes into a parent class or a `_common` module (e.g. `store/repos/_common.py: Repo[M]` with `_many`, `_one`, `get`, `exists`, `require`); each child sets its class attributes (`table`, `model`, `not_found`) and adds only its own methods.
+- One entry object wires the instances for callers (e.g. `Store(conn)` → `store.topics`, `store.claims`); callers go through it, not through module-level functions.
+- Inherit only for a real shared interface; no abstract base, registry or factory until a second implementation needs it. No compatibility shims when converting: update callers in the same step.
 
 ## Code economy: use the `ponytail` skill
 
 The goal is to stop code spilling past what the task needs. Be critical and concise.
 
 - **Implement with `ponytail:ponytail`.** Smallest complete change: reuse existing helpers, stdlib and installed dependencies first. No option, wrapper, abstraction or "for later" code nobody asked for. Never cut validation at trust boundaries, invariant enforcement or the tests a task's acceptance list names.
-- **Review with `ponytail:ponytail-review`.** Run it on the staged diff before a task is marked done (`/verify-task` includes it). Fix real findings; delete what the review calls unneeded. Whole-repo bloat sweeps use `ponytail:ponytail-audit`.
+- **Review with `ponytail:ponytail-review`.** Run it on the staged diff before a task is marked done (`/verify-task` includes it). Whole-repo bloat sweeps use `ponytail:ponytail-audit`.
+- **Review loop after every change:** implement → fire a reviewer subagent on the staged diff → fix every "Must fix" and "Should fix" (nice-to-haves only when trivial or asked) → re-run `pytest`, `ruff check`, `ruff format --check`, `mypy` → stage. Report which findings were fixed and which were skipped, with the reason.
 - **Subagents too.** A prompt that delegates implementation or review must tell the subagent to invoke the ponytail skill first.
 - **Keep shortcuts visible.** A shortcut with a known limit gets a `# shortcut: <limit>, <when to upgrade>` comment, and `ponytail:ponytail-debt` lists them.
 - **Report skips.** End every task report with what was skipped or not checked, and the risks.

@@ -9,12 +9,11 @@ from deepdive.ledger.limits import Doi, Id, Kind, SourceIds, Summary, Text, Tier
 from deepdive.store.enums import ClaimStatus, EvidenceStance
 from deepdive.store.errors import ClaimNotFoundError
 from deepdive.store.models import Evidence
-from deepdive.store.repos import claims, evidence, sources
 
 
 def register(server: MCPServer[None], ctx: LedgerContext) -> None:
     def with_source(row: Evidence) -> dict[str, Any]:
-        source = sources.get(ctx.conn, row.source_id)
+        source = ctx.store.sources.get(row.source_id)
         return {
             **row.model_dump(mode="json"),
             "source": source.model_dump(mode="json") if source else None,
@@ -32,8 +31,7 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
 
         Claims and evidence can only cite a source that is registered here.
         """
-        return sources.register(
-            ctx.conn,
+        return ctx.store.sources.register(
             url=url,
             doi=doi,
             kind=kind,
@@ -56,8 +54,7 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
 
         Every id must be a registered source, else nothing is written (source_not_found).
         """
-        claim = claims.add(
-            ctx.conn,
+        claim = ctx.store.claims.add(
             topic_id,
             text,
             source_ids,
@@ -66,7 +63,7 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
             excerpt_summary=excerpt_summary,
             session_id=session_id,
         )
-        rows = evidence.list_for_claim(ctx.conn, claim.id)
+        rows = ctx.store.evidence.list_for_claim(claim.id)
         return {"claim": claim.model_dump(mode="json"), "evidence": [with_source(e) for e in rows]}
 
     @server.tool()
@@ -74,7 +71,7 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
         """The topic's claims, each with its evidence rows and the sources they cite."""
         ctx.require_topic(topic_id)
         by_claim: dict[UUID, list[Evidence]] = {}
-        for row in evidence.list_for_topic(ctx.conn, topic_id):
+        for row in ctx.store.evidence.list_for_topic(topic_id):
             by_claim.setdefault(row.claim_id, []).append(row)
         return {
             "claims": [
@@ -82,7 +79,7 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
                     **c.model_dump(mode="json"),
                     "evidence": [with_source(e) for e in by_claim.get(c.id, [])],
                 }
-                for c in claims.list_for_topic(ctx.conn, topic_id)
+                for c in ctx.store.claims.list_for_topic(topic_id)
             ]
         }
 
@@ -95,8 +92,8 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
         excerpt_summary: Summary | None = None,
     ) -> dict[str, Any]:
         """Attach a registered source to an existing claim, supporting or weakening it."""
-        row = evidence.add(
-            ctx.conn, claim_id, source_id, stance, excerpt_summary, session_id=session_id
+        row = ctx.store.evidence.add(
+            claim_id, source_id, stance, excerpt_summary, session_id=session_id
         )
         return with_source(row)
 
@@ -108,11 +105,11 @@ def register(server: MCPServer[None], ctx: LedgerContext) -> None:
         if (claim_id is None) == (topic_id is None):
             raise InvalidInputError("give exactly one of claim_id or topic_id")
         if claim_id is not None:
-            if claims.get(ctx.conn, claim_id) is None:
+            if ctx.store.claims.get(claim_id) is None:
                 raise ClaimNotFoundError(claim_id)
-            rows = evidence.list_for_claim(ctx.conn, claim_id)
+            rows = ctx.store.evidence.list_for_claim(claim_id)
         else:
             assert topic_id is not None
             ctx.require_topic(topic_id)
-            rows = evidence.list_for_topic(ctx.conn, topic_id)
+            rows = ctx.store.evidence.list_for_topic(topic_id)
         return {"evidence": [with_source(e) for e in rows]}

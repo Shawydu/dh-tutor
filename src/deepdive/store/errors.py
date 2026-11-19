@@ -64,6 +64,11 @@ class ClaimNotFoundError(NotFoundError):
     code = "claim_not_found"
 
 
+class EvidenceNotFoundError(NotFoundError):
+    entity = "evidence"
+    code = "evidence_not_found"
+
+
 class CharterNotFoundError(StoreError):
     """The topic has no charter yet, or not that version."""
 

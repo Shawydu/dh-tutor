@@ -19,7 +19,7 @@ from deepdive.store.enums import (
     QuestionStatus,
     TopicStatus,
 )
-from deepdive.store.repos import agenda, charters, claims, edges, questions, sources, topics
+from deepdive.store.repos import Store
 
 TOPIC_FIXTURES = Path(__file__).parent / "fixtures" / "topics"
 
@@ -31,6 +31,11 @@ def db(tmp_path: Path) -> Iterator[sqlite3.Connection]:
     migrate(conn)
     yield conn
     conn.close()
+
+
+@pytest.fixture
+def store(db: sqlite3.Connection) -> Store:
+    return Store(db)
 
 
 @pytest.fixture
@@ -52,19 +57,18 @@ class Seed:
     claims: list[UUID]
 
 
-def _load(conn: sqlite3.Connection, path: Path, seed: Seed) -> None:
+def _load(store: Store, path: Path, seed: Seed) -> None:
     data: dict[str, Any] = json.loads(path.read_text())
-    topic = topics.create(conn, data["title"], status=TopicStatus(data["status"]))
+    topic = store.topics.create(data["title"], status=TopicStatus(data["status"]))
     seed.topics[path.stem] = topic.id
-    charters.write(conn, topic.id, **data["charter"])
-    agenda.replace_items(conn, topic.id, data["agenda"])
+    store.charters.write(topic.id, **data["charter"])
+    store.agenda.replace_items(topic.id, data["agenda"])
     local_sources: dict[str, UUID] = {}
     for key, src in data["sources"].items():
-        source = sources.register(conn, **src, seen_at=datetime(2026, 1, 1, tzinfo=UTC))
+        source = store.sources.register(**src, seen_at=datetime(2026, 1, 1, tzinfo=UTC))
         local_sources[key] = seed.sources[key] = source.id
     for claim in data["claims"]:
-        added = claims.add(
-            conn,
+        added = store.claims.add(
             topic.id,
             claim["text"],
             [local_sources[s] for s in claim["sources"]],
@@ -74,8 +78,7 @@ def _load(conn: sqlite3.Connection, path: Path, seed: Seed) -> None:
         seed.claims.append(added.id)
     local_questions: dict[str, UUID] = {}
     for key, q in data["questions"].items():
-        added_q = questions.add(
-            conn,
+        added_q = store.questions.add(
             topic.id,
             QuestionAsker(q["asker"]),
             q["raw"],
@@ -84,8 +87,7 @@ def _load(conn: sqlite3.Connection, path: Path, seed: Seed) -> None:
         )
         local_questions[key] = seed.questions[key] = added_q.id
     for edge in data["edges"]:
-        edges.add(
-            conn,
+        store.edges.add(
             local_questions[edge["from"]],
             local_questions[edge["to"]],
             QuestionEdgeRelation(edge["relation"]),
@@ -95,16 +97,15 @@ def _load(conn: sqlite3.Connection, path: Path, seed: Seed) -> None:
 
 
 @pytest.fixture
-def seed_topics(db: sqlite3.Connection) -> Seed:
+def seed_topics(store: Store) -> Seed:
     """The two design example topics (15 questions in all) loaded through the repos.
 
     Plus one cross-topic edge: the Iceberg commit question is an aspect of the Python locks one.
     """
     seed = Seed(topics={}, questions={}, sources={}, claims=[])
     for path in sorted(TOPIC_FIXTURES.glob("*.json")):
-        _load(db, path, seed)
-    edges.add(
-        db,
+        _load(store, path, seed)
+    store.edges.add(
         seed.questions["commit_concurrent"],
         seed.questions["locks_needed"],
         QuestionEdgeRelation.ASPECT,
