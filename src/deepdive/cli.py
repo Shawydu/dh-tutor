@@ -21,6 +21,8 @@ hook_app = typer.Typer(no_args_is_help=True, help="Agent-tool hooks; they read J
 app.add_typer(hook_app, name="hook")
 classify_app = typer.Typer(no_args_is_help=True, help="Try the classifier by hand.")
 app.add_typer(classify_app, name="classify")
+probe_app = typer.Typer(no_args_is_help=True, help="The overnight probe.")
+app.add_typer(probe_app, name="probe")
 
 
 @app.callback()
@@ -175,3 +177,31 @@ def classify_try(
     for key, answer in result.answers.items():
         top, p = answer.top
         typer.echo(f"{key}: {top} ({p:.2f})  {answer.probs}")
+
+
+@probe_app.command("plan")
+def probe_plan() -> None:
+    """Print the search agenda for each selected topic, without searching."""
+    from deepdive import clock
+    from deepdive.probe.agenda import AgendaBuilder
+    from deepdive.probe.select import TopicSelector
+    from deepdive.store.repos import Store
+
+    paths = Paths.from_env()
+    if not paths.db.exists():
+        typer.echo(f"no database at {paths.db}; run `deepdive db migrate`", err=True)
+        raise typer.Exit(1)
+    try:
+        probe = load_config(paths.config).probe
+    except ConfigError as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from err
+    with Database(paths.db) as db:
+        store = Store(db)
+        builder = AgendaBuilder(store, probe)
+        for topic in TopicSelector(store, probe).select(clock.now()):
+            typer.echo(f"# {topic.title}")
+            for n, item in enumerate(builder.build(topic.id), start=1):
+                typer.echo(f"{n}. [{item.kind}] {item.question}")
+                for query in item.queries:
+                    typer.echo(f"   - {query}")

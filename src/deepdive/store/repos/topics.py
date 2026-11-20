@@ -52,6 +52,10 @@ class TopicRepo(IdRepo[Topic]):
         roots = self._many("WHERE parent_topic_id IS NULL ORDER BY pinned DESC, id")
         return [TopicNode(**t.model_dump(), children=children.get(t.id, [])) for t in roots]
 
+    def list_by_status(self, status: TopicStatus) -> list[Topic]:
+        """Topics (children too) in this status, pinned first."""
+        return self._many("WHERE status = ? ORDER BY pinned DESC, id", (status,))
+
     def set_status(self, topic_id: UUID, status: TopicStatus) -> Topic:
         self.require(topic_id)
         self.conn.execute("UPDATE topic SET status = ? WHERE id = ?", (status, topic_id))

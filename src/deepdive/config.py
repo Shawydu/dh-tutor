@@ -39,6 +39,7 @@ class ProbeConfig(_Section):
     schedule: str = Field(default="02:00", pattern=_HHMM)
     topic_selection: Literal["all", "active", "pinned", "list"] = "pinned"
     topics: list[str] = []  # used when topic_selection = "list"
+    active_days: int = Field(default=14, ge=1)  # "active" = a session this recent
     max_topics: int = Field(default=5, ge=1)
     searches_per_topic: int = Field(default=10, ge=1)
 
@@ -143,7 +144,8 @@ fetch_max_chars = 20000     # longer fetched pages are truncated
 [probe]
 schedule = "02:00"          # HH:MM, 24-hour
 topic_selection = "pinned"  # all | active | pinned | list
-topics = []                 # used when topic_selection = "list"
+topics = []                 # topic titles, used when topic_selection = "list"
+active_days = 14            # "active" means a session within this many days
 max_topics = 5
 searches_per_topic = 10
 
