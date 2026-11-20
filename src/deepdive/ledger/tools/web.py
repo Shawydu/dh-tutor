@@ -9,11 +9,11 @@ from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Id, Limit, Title, Url
 from deepdive.ledger.tools._common import Tools
-from deepdive.search import cache
 from deepdive.search.arxiv import Arxiv
 from deepdive.search.base import TIER_KEY, SearchProvider, SearchResult
 from deepdive.search.budget import Budget
-from deepdive.search.fetch import FetchError, fetch_text
+from deepdive.search.cache import Cache
+from deepdive.search.fetch import Fetcher, FetchError
 from deepdive.search.github import GitHub
 from deepdive.search.hn import HackerNews
 
@@ -28,9 +28,10 @@ class WebTools(Tools):
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         super().__init__(ctx)
-        self.config = config
         self.pack = pack
         self.transport = transport
+        self.cache = Cache(ctx.paths.cache)
+        self.fetcher = Fetcher(pack.fetch_allowlist, config.search.fetch_max_chars)
         self.budget = Budget(config.search.session_budget)
         self.registry: dict[str, SearchProvider] = {
             p.name: p for p in (GitHub(secrets.github_token), Arxiv(), HackerNews())
@@ -78,15 +79,13 @@ class WebTools(Tools):
         async with self._client() as http:
             for name in chosen:
                 key = (name, query, str(since), str(limit))
-                hit = cache.get(self.ctx.paths.cache, *key)
+                hit = self.cache.get(*key)
                 try:
                     if hit is None:
                         found = await self.registry[name].search(
                             http, query, since=since, limit=limit
                         )
-                        cache.put(
-                            self.ctx.paths.cache, [r.model_dump(mode="json") for r in found], *key
-                        )
+                        self.cache.put([r.model_dump(mode="json") for r in found], *key)
                     else:
                         found = [SearchResult.model_validate(r) for r in hit]
                 except httpx.HTTPError as err:
@@ -108,9 +107,7 @@ class WebTools(Tools):
             self.ctx.store.sessions.require(session_id)
         try:
             async with self._client() as http:
-                text, truncated = await fetch_text(
-                    http, url, self.pack.fetch_allowlist, self.config.search.fetch_max_chars
-                )
+                text, truncated = await self.fetcher.text(http, url)
         except FetchError as err:
             return {"error": err.code, "detail": str(err)}
         host = (httpx.URL(url).host).lower()

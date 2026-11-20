@@ -11,17 +11,22 @@ from deepdive import clock
 TTL = timedelta(hours=24)
 
 
-def _file(folder: Path, *key: str) -> Path:
-    return folder / (hashlib.sha256("\0".join(key).encode()).hexdigest() + ".json")
+class Cache:
+    """JSON files under `folder`, each fresh for `ttl`."""
 
+    def __init__(self, folder: Path, ttl: timedelta = TTL) -> None:
+        self.folder = folder
+        self.ttl = ttl
 
-def get(folder: Path, *key: str) -> Any | None:
-    path = _file(folder, *key)
-    if not path.exists():
-        return None
-    age = clock.now().timestamp() - path.stat().st_mtime
-    return json.loads(path.read_text("utf-8")) if age < TTL.total_seconds() else None
+    def _file(self, *key: str) -> Path:
+        return self.folder / (hashlib.sha256("\0".join(key).encode()).hexdigest() + ".json")
 
+    def get(self, *key: str) -> Any | None:
+        path = self._file(*key)
+        if not path.exists():
+            return None
+        age = clock.now().timestamp() - path.stat().st_mtime
+        return json.loads(path.read_text("utf-8")) if age < self.ttl.total_seconds() else None
 
-def put(folder: Path, value: Any, *key: str) -> None:
-    _file(folder, *key).write_text(json.dumps(value), "utf-8")
+    def put(self, value: Any, *key: str) -> None:
+        self._file(*key).write_text(json.dumps(value), "utf-8")

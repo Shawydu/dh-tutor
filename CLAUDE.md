@@ -59,7 +59,7 @@ SQLite has no UUID, timestamp or enum types. The schema declares them by name, e
 
 ## Code structure: classes over module functions
 
-New features follow this pattern, and older modules are moved onto it one module per step (done: `store/repos`, `ledger/tools`, `LedgerContext`; candidates: `search/cache` + `search/fetch` (they take a folder or client on every call), `adapters/claude_code/install`, `store/db`).
+New features follow this pattern, and older modules are moved onto it one module per step (done: `store/repos`, `ledger/tools`, `LedgerContext`, `search/cache`, `search/fetch`; candidates: `adapters/claude_code/install`, `store/db`).
 
 - A module's behaviour lives in a class that holds its context (a connection, `Paths`, config) in `__init__`; methods don't take that context as a parameter.
 - What sibling classes share goes into a parent class or a `_common` module (e.g. `store/repos/_common.py`: `Repo[M]` with `_many`, `_one`; `IdRepo[M]` adds `get`, `exists`, `require` for tables keyed by `id`); each child sets its class attributes (`table`, `model`, `not_found`) and adds only its own methods.
