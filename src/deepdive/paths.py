@@ -43,6 +43,10 @@ class Paths:
         return self.root / "workspace"
 
     @property
+    def probe_lock(self) -> Path:
+        return self.root / "probe.lock"
+
+    @property
     def logs(self) -> Path:
         return self.root / "logs"
 

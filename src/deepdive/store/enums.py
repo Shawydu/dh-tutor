@@ -1,6 +1,7 @@
 """One StrEnum per enum lookup table in 0001_init.sql (table `<name>` seeds the same values).
 
-A new value is a new member here plus an INSERT in a later migration. Imports nothing from deepdive.
+A new value is a new member here plus an INSERT in a later migration (0006 adds
+DiscoveryTargetType). Imports nothing from deepdive.
 """
 
 from enum import StrEnum
@@ -66,6 +67,11 @@ class DiscoveryEffect(StrEnum):
     SUPPORTS = "supports"
     WEAKENS = "weakens"
     NEW_THREAD = "new_thread"
+
+
+class DiscoveryTargetType(StrEnum):
+    QUESTION = "question"
+    CLAIM = "claim"
 
 
 class KnowledgeEvidenceKind(StrEnum):

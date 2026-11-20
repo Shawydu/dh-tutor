@@ -15,11 +15,12 @@ from deepdive import clock
 from deepdive.classify import Classifier, get_classifier
 from deepdive.config import Secrets, load_config
 from deepdive.domain_packs import load_pack
-from deepdive.ledger.context import LedgerContext
+from deepdive.ledger.context import LedgerContext, ProbeScope
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.tools.agenda import AgendaTools
 from deepdive.ledger.tools.charters import CharterTools
 from deepdive.ledger.tools.claims import ClaimTools
+from deepdive.ledger.tools.discoveries import DiscoveryTools
 from deepdive.ledger.tools.questions import QuestionTools
 from deepdive.ledger.tools.recaps import RecapTools
 from deepdive.ledger.tools.sessions import SessionTools
@@ -97,11 +98,14 @@ def create_server(
     paths: Paths | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
     classifier: Classifier | None = None,
+    probe: ProbeScope | None = None,
 ) -> LedgerServer:
     """Open (and migrate) the database under `paths` and return the server with all tools.
 
     `transport` replaces the network for search and fetch and `classifier` the question
     classifier (tests pass fakes). The live guide uses this server: no headless Claude.
+    With `probe` it is a headless probe's server: only the probe's tools, the search budget is the
+    topic's, and the classifier is the headless one.
     """
     paths = paths or Paths.from_env()
     paths.ensure_dirs()
@@ -109,9 +113,19 @@ def create_server(
     db.migrate()
     # shortcut: the connection lives as long as the server process and is never closed; add a
     # close hook if the server ever outlives its database
-    ctx = LedgerContext(db=db, paths=paths)
+    ctx = LedgerContext(db=db, paths=paths, probe=probe)
     server = LedgerServer(ctx)
     config = load_config(paths.config)
+    web = WebTools(ctx, config, load_pack(config.domain.pack), Secrets.from_env(), transport)
+    if probe:
+        ctx.store.probe_runs.require(probe.probe_run_id)
+        ctx.store.topics.require(probe.topic_id)
+        DiscoveryTools(
+            ctx, config, classifier or get_classifier(config, live_session=False)
+        ).register(server)
+        ClaimTools(ctx).register(server, only={"claim_list", "evidence_list"})
+        web.register(server)
+        return server
     matcher = Matcher(ctx.store, classifier or get_classifier(config, live_session=True), config)
     for tools in (
         TopicTools(ctx),
@@ -121,7 +135,7 @@ def create_server(
         ClaimTools(ctx),
         QuestionTools(ctx, matcher),
         RecapTools(ctx),
-        WebTools(ctx, config, load_pack(config.domain.pack), Secrets.from_env(), transport),
+        web,
     ):
         tools.register(server)
     return server

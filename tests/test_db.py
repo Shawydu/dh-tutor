@@ -12,6 +12,7 @@ from deepdive.store.enums import (
     AgendaItemStatus,
     ClaimStatus,
     DiscoveryEffect,
+    DiscoveryTargetType,
     EvidenceStance,
     KnowledgeEvidenceGrade,
     KnowledgeEvidenceKind,
@@ -45,6 +46,7 @@ DESIGN_TABLES = {
     "poc_project",
     "frontier",  # 0002
     "agent_session",  # 0005
+    "probe_topic",  # 0006
 }
 # every column that holds a closed set of values, and the lookup table it references
 ENUM_COLUMNS = [
@@ -57,6 +59,7 @@ ENUM_COLUMNS = [
     ("evidence", "stance", "evidence_stance"),
     ("probe_run", "status", "probe_run_status"),
     ("discovery", "effect", "discovery_effect"),
+    ("discovery", "target_type", "discovery_target_type"),
     ("knowledge_evidence", "kind", "knowledge_evidence_kind"),
     ("knowledge_evidence", "grade", "knowledge_evidence_grade"),
 ]
@@ -128,6 +131,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             "0003_activate_chartered_topics",
             "0004_edge_repeat",
             "0005_agent_session",
+            "0006_discovery_target",
         ]
         assert db.migrate() == []
         assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
@@ -136,6 +140,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             (3, "0003_activate_chartered_topics"),
             (4, "0004_edge_repeat"),
             (5, "0005_agent_session"),
+            (6, "0006_discovery_target"),
         ]
 
 
@@ -400,7 +405,8 @@ def test_unknown_enum_value_is_rejected(seeded: sqlite3.Connection) -> None:
 def test_enum_tables_match_the_python_enums(db: Database) -> None:
     for enum in (
         TopicStatus, AgendaItemStatus, QuestionAsker, QuestionStatus, QuestionEdgeRelation,
-        ClaimStatus, EvidenceStance, ProbeRunStatus, DiscoveryEffect, KnowledgeEvidenceKind,
+        ClaimStatus, EvidenceStance, ProbeRunStatus, DiscoveryEffect, DiscoveryTargetType,
+        KnowledgeEvidenceKind,
         KnowledgeEvidenceGrade,
     ):  # fmt: skip
         table = "".join("_" + c.lower() if c.isupper() else c for c in enum.__name__).lstrip("_")
@@ -508,8 +514,10 @@ def test_source_url_and_doi_are_unique(seeded: sqlite3.Connection) -> None:
             id="question_edge.to_id",
         ),
         pytest.param(
-            "INSERT INTO discovery (id, topic_id, probe_run_id, source_id, effect, relevance)"
-            f" VALUES ('{u(50)}', '{ID1}', '{ID1}', '{MISSING}', 'answers', 0.5)",
+            "INSERT INTO discovery (id, topic_id, probe_run_id, source_id, target_type, target_id,"
+            " effect, relevance, summary)"
+            f" VALUES ('{u(50)}', '{ID1}', '{ID1}', '{MISSING}', 'question', '{ID1}', 'answers',"
+            " 0.5, 's')",
             id="discovery.source_id",
         ),
         pytest.param(

@@ -8,6 +8,7 @@ from pydantic import Field
 TITLE_MAX = 200  # topic titles, agenda facets, core questions and other one-line items
 TEXT_MAX = 1000  # claim text, charter done_when
 SUMMARY_MAX = 2000  # session summaries, answer summaries, evidence excerpt summaries
+FINDING_MAX = 600  # a discovery summary: two sentences
 NOTE_MAX = 500  # bookmark notes
 URL_MAX = 2048
 DOI_MAX = 256
@@ -25,6 +26,7 @@ Title = Annotated[str, Field(min_length=1, max_length=TITLE_MAX)]
 Text = Annotated[str, Field(min_length=1, max_length=TEXT_MAX)]
 Summary = Annotated[str, Field(min_length=1, max_length=SUMMARY_MAX)]
 Markdown = Annotated[str, Field(min_length=1, max_length=MARKDOWN_MAX)]
+Finding = Annotated[str, Field(min_length=1, max_length=FINDING_MAX)]
 Note = Annotated[str, Field(max_length=NOTE_MAX)]
 Items = Annotated[list[Title], Field(max_length=LIST_MAX)]
 Facets = Annotated[list[Title], Field(min_length=1, max_length=LIST_MAX)]

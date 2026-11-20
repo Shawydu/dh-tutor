@@ -6,6 +6,7 @@ Imports nothing from deepdive outside the store.
 """
 
 import json
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -14,7 +15,10 @@ from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from deepdive.store.enums import (
     AgendaItemStatus,
     ClaimStatus,
+    DiscoveryEffect,
+    DiscoveryTargetType,
     EvidenceStance,
+    ProbeRunStatus,
     QuestionAsker,
     QuestionEdgeRelation,
     QuestionStatus,
@@ -146,3 +150,40 @@ class Evidence(BaseModel):
     stance: EvidenceStance
     excerpt_summary: str | None
     session_id: UUID | None
+
+
+class TopicOutcome(StrEnum):
+    """How one topic went in a probe run; lives inside `probe_run.topics` JSON, not a column."""
+
+    PLANNED = "planned"
+    OK = "ok"
+    BUDGET_EXHAUSTED = "budget_exhausted"
+    FAILED = "failed"
+    SKIPPED = "skipped"  # nothing on its agenda
+
+
+class ProbeTopic(BaseModel):
+    topic_id: UUID
+    outcome: TopicOutcome = TopicOutcome.PLANNED
+
+
+class ProbeRun(BaseModel):
+    id: UUID
+    started_at: AwareDatetime
+    topics: list[ProbeTopic]
+    searches_used: int
+    status: ProbeRunStatus
+    _decode = field_validator("topics", mode="before")(_from_json)
+
+
+class Discovery(BaseModel):
+    id: UUID
+    topic_id: UUID
+    probe_run_id: UUID
+    source_id: UUID
+    target_type: DiscoveryTargetType
+    target_id: UUID
+    effect: DiscoveryEffect
+    relevance: float
+    summary: str
+    read_at: AwareDatetime | None

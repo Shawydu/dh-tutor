@@ -73,3 +73,20 @@ class CharterNotFoundError(StoreError):
     """The topic has no charter yet, or not that version."""
 
     code = "charter_not_found"
+
+
+class ProbeRunNotFoundError(NotFoundError):
+    entity = "probe run"
+    code = "probe_run_not_found"
+
+
+class DuplicateSourceError(StoreError):
+    """The topic already has a discovery or evidence citing this source."""
+
+    code = "duplicate_source"
+
+
+class InvalidTargetError(StoreError):
+    """A discovery's target must be an existing question or claim of the same topic."""
+
+    code = "invalid_target"

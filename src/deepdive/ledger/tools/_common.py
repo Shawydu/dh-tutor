@@ -18,10 +18,13 @@ class Tools:
     def __init__(self, ctx: LedgerContext) -> None:
         self.ctx = ctx
 
-    def register(self, server: MCPServer[None]) -> None:
+    def register(self, server: MCPServer[None], only: set[str] | None = None) -> None:
+        """Register the tools, or just those named in `only` (the probe's narrower toolset)."""
         # vars() keeps definition order and skips inherited members
         for name, member in vars(type(self)).items():
             if not name.startswith("_") and inspect.iscoroutinefunction(member):
+                if only is not None and name not in only:
+                    continue
                 server.tool()(getattr(self, name))
 
     def _claims_with_sources(self, topic_id: UUID) -> list[dict[str, Any]]:

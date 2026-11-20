@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
@@ -32,7 +32,8 @@ class WebTools(Tools):
         self.transport = transport
         self.cache = Cache(ctx.paths.cache)
         self.fetcher = Fetcher(pack.fetch_allowlist, config.search.fetch_max_chars)
-        self.budget = Budget(config.search.session_budget)
+        self.budget = Budget(config.search.session_budget)  # interactive; a probe's is in the DB
+        self.probe_limits = config.probe
         self.registry: dict[str, SearchProvider] = {
             p.name: p for p in (GitHub(secrets.github_token), Arxiv(), HackerNews())
         }
@@ -53,6 +54,19 @@ class WebTools(Tools):
         )
         return str(row.id)
 
+    def _spent(self, kind: Literal["search", "fetch"], session_id: Id | None) -> bool:
+        """Count one call against the budget; True when the budget is already used up."""
+        if probe := self.ctx.probe:
+            limit = (
+                self.probe_limits.searches_per_topic
+                if kind == "search"
+                else self.probe_limits.fetches_per_topic
+            )
+            return not self.ctx.store.probe_runs.spend(
+                probe.probe_run_id, probe.topic_id, kind, limit
+            )
+        return kind == "search" and not self.budget.spend(str(session_id or "interactive"))
+
     async def search(
         self,
         query: Title,
@@ -71,8 +85,7 @@ class WebTools(Tools):
             raise InvalidInputError(f"unknown providers {unknown}; enabled: {self.enabled}")
         if session_id:
             self.ctx.store.sessions.require(session_id)
-        run = str(session_id or "interactive")
-        if not self.budget.spend(run):
+        if self._spent("search", session_id):
             return {"error": "budget_exhausted", "detail": "no searches left in this session"}
         results: list[SearchResult] = []
         errors: dict[str, str] = {}
@@ -99,12 +112,15 @@ class WebTools(Tools):
             }
             for r in results
         ]
-        return {"results": out, "errors": errors, "budget_remaining": self.budget.remaining(run)}
+        left = None if self.ctx.probe else self.budget.remaining(str(session_id or "interactive"))
+        return {"results": out, "errors": errors, "budget_remaining": left}
 
     async def fetch(self, url: Url, session_id: Id | None = None) -> dict[str, Any]:
         """Fetch a page from an allowlisted host as text (truncated, with `truncated: true`)."""
         if session_id:
             self.ctx.store.sessions.require(session_id)
+        if self._spent("fetch", session_id):
+            return {"error": "budget_exhausted", "detail": "no fetches left for this topic"}
         try:
             async with self._client() as http:
                 text, truncated = await self.fetcher.text(http, url)

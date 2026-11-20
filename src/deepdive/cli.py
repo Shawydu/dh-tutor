@@ -3,6 +3,7 @@ import sys
 from importlib import metadata
 from pathlib import Path
 from typing import Annotated
+from uuid import UUID
 
 import typer
 
@@ -31,11 +32,21 @@ def main() -> None:
 
 
 @mcp_app.command("serve")
-def mcp_serve() -> None:
+def mcp_serve(
+    probe_run: Annotated[
+        UUID | None, typer.Option(help="Headless probe: the probe run id.")
+    ] = None,
+    topic: Annotated[UUID | None, typer.Option(help="Headless probe: the topic id.")] = None,
+) -> None:
     """Serve the ledger over stdio; the agent tool starts this. Stdout carries the protocol."""
+    from deepdive.ledger.context import ProbeScope
     from deepdive.ledger.server import create_server  # keeps `deepdive version` from loading mcp
 
-    create_server().run("stdio")
+    if (probe_run is None) != (topic is None):
+        typer.echo("--probe-run and --topic go together", err=True)
+        raise typer.Exit(2)
+    scope = ProbeScope(probe_run, topic) if probe_run and topic else None
+    create_server(probe=scope).run("stdio")
 
 
 @hook_app.command("user-prompt")
@@ -205,3 +216,34 @@ def probe_plan() -> None:
                 typer.echo(f"{n}. [{item.kind}] {item.question}")
                 for query in item.queries:
                     typer.echo(f"   - {query}")
+
+
+@probe_app.command("run")
+def probe_run() -> None:
+    """Research the selected topics now, one headless agent per topic."""
+    from deepdive.adapters.claude_code.headless import ClaudeProbe
+    from deepdive.probe.lock import ProbeLockedError
+    from deepdive.probe.runner import ProbeRunner
+    from deepdive.store.repos import Store
+
+    paths = Paths.from_env()
+    if not paths.db.exists():
+        typer.echo(f"no database at {paths.db}; run `deepdive db migrate`", err=True)
+        raise typer.Exit(1)
+    try:
+        probe = load_config(paths.config).probe
+    except ConfigError as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from err
+    paths.ensure_dirs()
+    with Database(paths.db) as db:
+        try:
+            outcome = ProbeRunner(Store(db), probe, paths, ClaudeProbe(paths)).run()
+        except ProbeLockedError as err:
+            typer.echo(str(err), err=True)
+            raise typer.Exit(1) from err
+    typer.echo(f"probe run {outcome.run.id}: {outcome.run.status.value}")
+    for line in outcome.lines:
+        typer.echo(f"  {line}")
+    if outcome.run.status == "failed":
+        raise typer.Exit(1)

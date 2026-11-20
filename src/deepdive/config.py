@@ -42,6 +42,7 @@ class ProbeConfig(_Section):
     active_days: int = Field(default=14, ge=1)  # "active" = a session this recent
     max_topics: int = Field(default=5, ge=1)
     searches_per_topic: int = Field(default=10, ge=1)
+    fetches_per_topic: int = Field(default=20, ge=1)
 
 
 class DigestConfig(_Section):
@@ -148,6 +149,7 @@ topics = []                 # topic titles, used when topic_selection = "list"
 active_days = 14            # "active" means a session within this many days
 max_topics = 5
 searches_per_topic = 10
+fetches_per_topic = 20
 
 [digest]
 time = "07:00"              # HH:MM, 24-hour
