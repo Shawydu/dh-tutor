@@ -19,7 +19,7 @@ class QuestionTools(Tools):
         self, session_id: Id, topic_id: Id, text: Text, asker: QuestionAsker
     ) -> dict[str, Any]:
         """Store a question as asked (open). No matching: the clean text is the trimmed text."""
-        if self.ctx.require_session(session_id).topic_id != topic_id:
+        if self.ctx.store.sessions.require(session_id).topic_id != topic_id:
             raise InvalidInputError("topic_id must be the session's topic")
         clean = " ".join(text.split())
         return self.ctx.store.questions.add(
@@ -28,7 +28,7 @@ class QuestionTools(Tools):
 
     async def question_park(self, session_id: Id, question_id: Id) -> dict[str, Any]:
         """Park a question: it leaves the walkthrough and can be found again with parked_list."""
-        session = self.ctx.require_session(session_id)
+        session = self.ctx.store.sessions.require(session_id)
         question = self.ctx.store.questions.get(question_id)
         if question is None:
             raise QuestionNotFoundError(question_id)
@@ -44,7 +44,7 @@ class QuestionTools(Tools):
         status: QuestionStatus = QuestionStatus.ANSWERED,
     ) -> dict[str, Any]:
         """Store the answer summary for a question and set its status (default: answered)."""
-        self.ctx.require_session(session_id)
+        self.ctx.store.sessions.require(session_id)
         return self.ctx.store.questions.set_answer_summary(
             question_id, summary, status=status
         ).model_dump(mode="json")
@@ -52,7 +52,7 @@ class QuestionTools(Tools):
     async def parked_list(self, topic_id: Id | None = None) -> dict[str, Any]:
         """Parked questions of one topic, or of every topic when topic_id is omitted."""
         if topic_id is not None:
-            self.ctx.require_topic(topic_id)
+            self.ctx.store.topics.require(topic_id)
         return {
             "questions": [
                 q.model_dump(mode="json") for q in self.ctx.store.questions.list_parked(topic_id)

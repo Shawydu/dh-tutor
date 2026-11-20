@@ -69,7 +69,7 @@ class WebTools(Tools):
         if unknown := [n for n in chosen if n not in self.enabled]:
             raise InvalidInputError(f"unknown providers {unknown}; enabled: {self.enabled}")
         if session_id:
-            self.ctx.require_session(session_id)
+            self.ctx.store.sessions.require(session_id)
         run = str(session_id or "interactive")
         if not self.budget.spend(run):
             return {"error": "budget_exhausted", "detail": "no searches left in this session"}
@@ -105,7 +105,7 @@ class WebTools(Tools):
     async def fetch(self, url: Url, session_id: Id | None = None) -> dict[str, Any]:
         """Fetch a page from an allowlisted host as text (truncated, with `truncated: true`)."""
         if session_id:
-            self.ctx.require_session(session_id)
+            self.ctx.store.sessions.require(session_id)
         try:
             async with self._client() as http:
                 text, truncated = await fetch_text(

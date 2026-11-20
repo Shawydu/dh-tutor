@@ -24,7 +24,7 @@ class SessionRepo(IdRepo[Session]):
             "INSERT INTO session (id, topic_id, started_at) VALUES (?, ?, ?)",
             (session_id, topic_id, at),
         )
-        return self._must_get(session_id)
+        return self.require(session_id)
 
     def bookmark(
         self,
@@ -44,14 +44,14 @@ class SessionRepo(IdRepo[Session]):
         self.conn.execute(
             "UPDATE session SET bookmark = ? WHERE id = ?", (mark.model_dump_json(), session_id)
         )
-        return self._must_get(session_id)
+        return self.require(session_id)
 
     def end(self, session_id: UUID, summary: str, *, at: datetime) -> Session:
         self.require(session_id)
         self.conn.execute(
             "UPDATE session SET ended_at = ?, summary = ? WHERE id = ?", (at, summary, session_id)
         )
-        return self._must_get(session_id)
+        return self.require(session_id)
 
     def latest(self, topic_id: UUID, *, recorded: bool = False) -> Session | None:
         """The newest session; with `recorded`, the newest that has a summary or a bookmark."""

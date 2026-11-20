@@ -53,11 +53,8 @@ class IdRepo[M: BaseModel](Repo[M]):
         sql = f'SELECT 1 FROM "{self.table}" WHERE id = ?'
         return self.conn.execute(sql, (id_,)).fetchone() is not None
 
-    def require(self, id_: UUID) -> None:
-        if not self.exists(id_):
-            raise self.not_found(id_)
-
-    def _must_get(self, id_: UUID) -> M:
+    def require(self, id_: UUID) -> M:
+        """The row, or `not_found` raised."""
         found = self.get(id_)
         if found is None:
             raise self.not_found(id_)

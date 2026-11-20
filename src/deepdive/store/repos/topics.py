@@ -41,7 +41,7 @@ class TopicRepo(IdRepo[Topic]):
             if "one level deep" in str(err):  # the trigger, if a concurrent write beat the check
                 raise ChildDepthError(str(err)) from err
             raise
-        return self._must_get(topic_id)
+        return self.require(topic_id)
 
     def list_all(self) -> list[TopicNode]:
         """Top-level topics (pinned first), each with its children."""
@@ -55,12 +55,12 @@ class TopicRepo(IdRepo[Topic]):
     def set_status(self, topic_id: UUID, status: TopicStatus) -> Topic:
         self.require(topic_id)
         self.conn.execute("UPDATE topic SET status = ? WHERE id = ?", (status, topic_id))
-        return self._must_get(topic_id)
+        return self.require(topic_id)
 
     def _set_pinned(self, topic_id: UUID, pinned: bool) -> Topic:
         self.require(topic_id)
         self.conn.execute("UPDATE topic SET pinned = ? WHERE id = ?", (int(pinned), topic_id))
-        return self._must_get(topic_id)
+        return self.require(topic_id)
 
     def pin(self, topic_id: UUID) -> Topic:
         return self._set_pinned(topic_id, True)

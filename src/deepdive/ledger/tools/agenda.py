@@ -12,7 +12,7 @@ class AgendaTools(Tools):
 
     async def agenda_next(self, topic_id: Id) -> dict[str, Any]:
         """The first open agenda item, or null when every item is done."""
-        self.ctx.require_topic(topic_id)
+        self.ctx.store.topics.require(topic_id)
         item = self.ctx.store.agenda.next_open(topic_id)
         return {"item": item.model_dump(mode="json") if item else None}
 

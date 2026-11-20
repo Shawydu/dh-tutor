@@ -26,10 +26,7 @@ class TopicTools(Tools):
 
     async def topic_get(self, topic_id: Id) -> dict[str, Any]:
         """One topic: id, title, parent_topic_id, status, pinned."""
-        self.ctx.require_topic(topic_id)
-        topic = self.ctx.store.topics.get(topic_id)
-        assert topic is not None
-        return topic.model_dump(mode="json")
+        return self.ctx.store.topics.require(topic_id).model_dump(mode="json")
 
     async def topic_list(self) -> dict[str, Any]:
         """Top-level topics (pinned first), each with its child topics."""
@@ -61,7 +58,7 @@ class TopicTools(Tools):
     async def resume_brief(self, topic_id: Id) -> dict[str, Any]:
         """To resume a topic, in the order to present it: where_we_left_off, recap_checks (empty
         until v2), new_findings (empty until v1), next_agenda_item. Call before session_start."""
-        self.ctx.require_topic(topic_id)
+        self.ctx.store.topics.require(topic_id)
         last = self.ctx.store.sessions.latest(topic_id, recorded=True)
         mark = last.bookmark if last else None
         items = self.ctx.store.agenda.list_items(topic_id)
@@ -92,8 +89,8 @@ class TopicTools(Tools):
         session_id is the parent's open session: it is bookmarked at its agenda item. The child
         starts with the question as its one core question and the parent's done_when.
         """
-        parent_session = self.ctx.require_session(session_id)
-        parent = self.ctx.require_topic(parent_id)
+        parent_session = self.ctx.store.sessions.require(session_id)
+        parent = self.ctx.store.topics.require(parent_id)
         question = self.ctx.store.questions.get(question_id)
         if parent.parent_topic_id is not None:
             raise ChildDepthError(f"topic {parent_id} is itself a child; children are one deep")
@@ -155,7 +152,7 @@ class TopicTools(Tools):
             raise TopicNotFoundError(child_id)
         if child.parent_topic_id is None or child.status == TopicStatus.FINISHED:
             raise InvalidInputError("not an unfinished child topic")
-        parent_session = self.ctx.require_session(session_id)
+        parent_session = self.ctx.store.sessions.require(session_id)
         if parent_session.topic_id != child.parent_topic_id:
             raise InvalidInputError("session_id must be a session of the child's parent topic")
         child_session = self.ctx.store.sessions.latest(child_id)
@@ -178,11 +175,11 @@ class TopicTools(Tools):
 
     async def frontier_add(self, session_id: Id, topic_id: Id, question_id: Id) -> dict[str, Any]:
         """Add an adjacent question to a topic's frontier (from a child: its parent's)."""
-        self.ctx.require_session(session_id)
+        self.ctx.store.sessions.require(session_id)
         question = self.ctx.store.questions.get(question_id)
         if question is None:
             raise QuestionNotFoundError(question_id)
-        owner = self.ctx.require_topic(question.topic_id)
+        owner = self.ctx.store.topics.require(question.topic_id)
         if topic_id not in (owner.id, owner.parent_topic_id):
             raise InvalidInputError("the question must belong to topic_id or one of its children")
         self.ctx.store.frontier.add(topic_id, question_id)
@@ -191,7 +188,7 @@ class TopicTools(Tools):
     async def map_get(self, topic_id: Id) -> dict[str, Any]:
         """Compact map: latest charter (or null), agenda with status, claims with cited sources,
         open questions and the frontier."""
-        self.ctx.require_topic(topic_id)
+        self.ctx.store.topics.require(topic_id)
         charter = self.ctx.store.charters.get_latest(topic_id)
         return {
             "charter": charter.model_dump(mode="json") if charter else None,

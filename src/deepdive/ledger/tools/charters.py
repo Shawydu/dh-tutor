@@ -27,7 +27,7 @@ class CharterTools(Tools):
 
     async def charter_get(self, topic_id: Id, version: Version | None = None) -> dict[str, Any]:
         """The topic's latest charter, or the given version."""
-        self.ctx.require_topic(topic_id)
+        self.ctx.store.topics.require(topic_id)
         found = (
             self.ctx.store.charters.get_latest(topic_id)
             if version is None

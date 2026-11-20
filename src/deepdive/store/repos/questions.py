@@ -48,12 +48,12 @@ class QuestionRepo(IdRepo[Question]):
             " VALUES (?, ?, ?, ?, ?, ?, ?)",
             (question_id, topic_id, session_id, asker, raw_text, clean_text, status),
         )
-        return self._must_get(question_id)
+        return self.require(question_id)
 
     def set_status(self, question_id: UUID, status: QuestionStatus) -> Question:
         self.require(question_id)
         self.conn.execute("UPDATE question SET status = ? WHERE id = ?", (status, question_id))
-        return self._must_get(question_id)
+        return self.require(question_id)
 
     def set_answer_summary(
         self, question_id: UUID, summary: str, *, status: QuestionStatus | None = None
@@ -64,7 +64,7 @@ class QuestionRepo(IdRepo[Question]):
             "UPDATE question SET answer_summary = ?, status = COALESCE(?, status) WHERE id = ?",
             (summary, status, question_id),
         )
-        return self._must_get(question_id)
+        return self.require(question_id)
 
     def park(self, question_id: UUID) -> Question:
         return self.set_status(question_id, QuestionStatus.PARKED)

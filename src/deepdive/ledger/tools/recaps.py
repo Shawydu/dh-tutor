@@ -14,7 +14,7 @@ class RecapTools(Tools):
         """Everything a retrospective needs, read-only: topic, latest charter, agenda, sessions
         (oldest first), claims with sources, questions by status and child topics. Long text is
         cut and `truncated` is true; lists are not capped (shortcut: very large topics)."""
-        self.ctx.require_topic(topic_id)
+        self.ctx.store.topics.require(topic_id)
         cuts: list[str] = []
 
         def cut(text: str | None) -> str | None:
@@ -60,8 +60,8 @@ class RecapTools(Tools):
         """Save the retrospective as recaps/<topic-slug>-<topic-id-tail>-<YYYY-MM-DD>.md (the
         same topic on the same day overwrites). The engine picks the file name. Returns the path
         under DEEPDIVE_HOME and the byte count."""
-        self.ctx.require_session(session_id)
-        topic = self.ctx.require_topic(topic_id)
+        self.ctx.store.sessions.require(session_id)
+        topic = self.ctx.store.topics.require(topic_id)
         slug = re.sub(r"[^a-z0-9]+", "-", topic.title.lower()).strip("-")[:40].strip("-")
         slug = slug or "recap"  # e.g. a title with no ascii letters
         folder = self.ctx.paths.recaps.resolve()

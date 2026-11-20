@@ -69,7 +69,7 @@ class ClaimTools(Tools):
 
     async def claim_list(self, topic_id: Id) -> dict[str, Any]:
         """The topic's claims, each with its evidence rows and the sources they cite."""
-        self.ctx.require_topic(topic_id)
+        self.ctx.store.topics.require(topic_id)
         by_claim: dict[UUID, list[Evidence]] = {}
         for row in self.ctx.store.evidence.list_for_topic(topic_id):
             by_claim.setdefault(row.claim_id, []).append(row)
@@ -109,6 +109,6 @@ class ClaimTools(Tools):
             rows = self.ctx.store.evidence.list_for_claim(claim_id)
         else:
             assert topic_id is not None
-            self.ctx.require_topic(topic_id)
+            self.ctx.store.topics.require(topic_id)
             rows = self.ctx.store.evidence.list_for_topic(topic_id)
         return {"evidence": [self._with_source(e) for e in rows]}
