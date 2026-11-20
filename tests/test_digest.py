@@ -155,3 +155,22 @@ def test_digest_get_found_or_not_found(db: Database, tmp_path: Path, built: bool
 def test_unset_digest_path_follows_paths_and_a_set_one_wins(path: str | None, want: Path) -> None:
     """With no digest path configured the folder is Paths.digests; a set path overrides it."""
     assert DigestConfig(path=path).folder(Path("/home/x")) == want
+
+
+def test_digest_renders_an_agenda_item_finding(
+    store: Store, seed_topics: Seed, tmp_path: Path
+) -> None:
+    """A facet finding reads 'agenda item "<facet>"' under Why it matters."""
+    topic = seed_topics.topics["iceberg"]
+    run = store.probe_runs.create([topic], at=datetime(2026, 1, 1, tzinfo=UTC))
+    src = store.sources.register(
+        url="https://example.org/c", kind="blog", tier=3, seen_at=datetime(2026, 1, 1, tzinfo=UTC)
+    )
+    item = store.agenda.list_items(topic)[0]
+    store.discoveries.add(
+        run.id, topic, src.id, DiscoveryTargetType.AGENDA_ITEM, item.id,
+        DiscoveryEffect.SUPPORTS, 0.9, "It covers this. It matters.",
+    )  # fmt: skip
+    out = DigestBuilder(store, tmp_path).build(DAY)
+    assert f'Why it matters: agenda item "{item.facet}".' in out
+    assert "**supports** agenda item:" in out

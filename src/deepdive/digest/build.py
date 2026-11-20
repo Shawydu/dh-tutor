@@ -5,6 +5,7 @@ from itertools import groupby
 from pathlib import Path
 from urllib.parse import urlparse
 
+from deepdive.store.enums import DiscoveryTargetType
 from deepdive.store.repos import Store
 
 NOTHING_NEW = "Nothing new since the last digest."
@@ -61,9 +62,12 @@ class DigestBuilder:
             for f in group:
                 host = urlparse(f.source_url).hostname or f.source_url
                 url = f.source_url.replace(" ", "%20").replace(")", "%29")  # keeps the link whole
+                kind = f.target_type.value.replace("_", " ")
+                label = "agenda item " if f.target_type == DiscoveryTargetType.AGENDA_ITEM else ""
+                what = f'{label}"{_one_line(f.target_text)}"'
                 lines += [
-                    f"- **{f.effect.value}** {f.target_type.value}: {_one_line(f.summary)}",
-                    f'  Why it matters: "{_one_line(f.target_text)}". Source: [{host}]({url}).',
+                    f"- **{f.effect.value}** {kind}: {_one_line(f.summary)}",
+                    f"  Why it matters: {what}. Source: [{host}]({url}).",
                     f"  Resume: `/resume {titles[topic_id]} --item {f.id}`",
                 ]
             lines.append("")

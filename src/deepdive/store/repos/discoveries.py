@@ -4,13 +4,20 @@ from uuid import UUID
 from deepdive.store.enums import DiscoveryEffect, DiscoveryTargetType
 from deepdive.store.errors import DuplicateSourceError, InvalidTargetError
 from deepdive.store.ids import new_id
-from deepdive.store.models import Claim, Discovery, Finding, Question
+from deepdive.store.models import AgendaItem, Claim, Discovery, Finding, Question
 from deepdive.store.repos._common import Repo
+from deepdive.store.repos.agenda import AgendaRepo
 from deepdive.store.repos.claims import ClaimRepo
 from deepdive.store.repos.probe_runs import ProbeRunRepo
 from deepdive.store.repos.questions import QuestionRepo
 from deepdive.store.repos.sources import SourceRepo
 from deepdive.store.repos.topics import TopicRepo
+
+
+def target_text(target: Question | Claim | AgendaItem) -> str:
+    if isinstance(target, Question):
+        return target.clean_text
+    return target.facet if isinstance(target, AgendaItem) else target.text
 
 
 class DiscoveryRepo(Repo[Discovery]):
@@ -19,16 +26,12 @@ class DiscoveryRepo(Repo[Discovery]):
 
     def check(
         self, topic_id: UUID, source_id: UUID, target_type: DiscoveryTargetType, target_id: UUID
-    ) -> Question | Claim:
-        """Return the target, or refuse: unknown topic or source, a target that isn't a question
-        or claim of this topic, or a source the topic already cites."""
+    ) -> Question | Claim | AgendaItem:
+        """Return the target, or refuse: unknown topic or source, a target that isn't a question,
+        claim or agenda item of this topic, or a source the topic already cites."""
         TopicRepo(self.db).require(topic_id)
         SourceRepo(self.db).require(source_id)
-        target = (
-            QuestionRepo(self.db)
-            if target_type == DiscoveryTargetType.QUESTION
-            else ClaimRepo(self.db)
-        ).get(target_id)
+        target = self._target_repo(target_type).get(target_id)
         if target is None or target.topic_id != topic_id:
             raise InvalidTargetError(f"{target_type} {target_id} is not in topic {topic_id}")
         # url and doi are UNIQUE on source, so one source row is one url/doi
@@ -40,6 +43,15 @@ class DiscoveryRepo(Repo[Discovery]):
         ).fetchone():
             raise DuplicateSourceError(f"topic {topic_id} already cites source {source_id}")
         return target
+
+    def _target_repo(
+        self, target_type: DiscoveryTargetType
+    ) -> QuestionRepo | ClaimRepo | AgendaRepo:
+        if target_type == DiscoveryTargetType.QUESTION:
+            return QuestionRepo(self.db)
+        if target_type == DiscoveryTargetType.CLAIM:
+            return ClaimRepo(self.db)
+        return AgendaRepo(self.db)
 
     def add(
         self,
@@ -97,17 +109,13 @@ class DiscoveryRepo(Repo[Discovery]):
 
     def finding(self, d: Discovery) -> Finding:
         """`d` with its target's text and its source's link."""
-        target = (
-            QuestionRepo(self.db).get(d.target_id)
-            if d.target_type == DiscoveryTargetType.QUESTION
-            else ClaimRepo(self.db).get(d.target_id)
-        )
+        target = self._target_repo(d.target_type).get(d.target_id)
         source = SourceRepo(self.db).require(d.source_id)
         assert target is not None  # DiscoveryRepo.check ran on add
         return Finding(
             **d.model_dump(
                 include={"id", "topic_id", "effect", "target_type", "summary", "relevance"}
             ),
-            target_text=target.clean_text if isinstance(target, Question) else target.text,
+            target_text=target_text(target),
             source_url=source.url or f"https://doi.org/{source.doi}",
         )

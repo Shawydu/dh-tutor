@@ -43,6 +43,8 @@ class World:
     cited: UUID  # a source already evidence for `claim`
     fresh: UUID  # a source nothing cites yet
     other_question: UUID  # belongs to another topic
+    item: UUID  # an agenda item of `topic`
+    other_item: UUID  # an agenda item of the other topic
 
 
 @pytest.fixture
@@ -63,7 +65,11 @@ def world(tmp_path: Path) -> World:
     cited, fresh = src("https://e.com/cited"), src("https://e.com/fresh")
     claim = store.claims.add(topic.id, "Commits are atomic", [cited])
     run = store.probe_runs.create([topic.id], at=NOW)
-    return World(paths, store, run.id, topic.id, q.id, claim.id, cited, fresh, oq.id)
+    item = store.agenda.replace_items(topic.id, ["Commit protocol"])[0]
+    other_item = store.agenda.replace_items(other.id, ["Elsewhere facet"])[0]
+    return World(
+        paths, store, run.id, topic.id, q.id, claim.id, cited, fresh, oq.id, item.id, other_item.id
+    )
 
 
 def ledger(
@@ -111,6 +117,12 @@ def test_discovery_add_below_threshold_writes_nothing(world: World) -> None:
     assert led.count("discovery") == 0
 
 
+def test_discovery_add_accepts_an_agenda_item(world: World) -> None:
+    """A facet finding is filed against the topic's agenda item."""
+    out = add(ledger(world), world, target_type="agenda_item", target_id=str(world.item))
+    assert (out["target_type"], out["target_id"]) == ("agenda_item", str(world.item))
+
+
 @pytest.mark.parametrize("which", ["fresh", "cited"])
 def test_discovery_add_refuses_a_source_the_topic_already_cites(world: World, which: str) -> None:
     """A source already in a discovery (twice) or in evidence (cited) is a duplicate_source."""
@@ -128,6 +140,7 @@ def test_discovery_add_refuses_a_source_the_topic_already_cites(world: World, wh
         ({"target_id": "other_question"}, "invalid_target"),  # another topic's question
         ({"target_type": "claim", "target_id": "question"}, "invalid_target"),  # wrong table
         ({"target_id": MISSING}, "invalid_target"),
+        ({"target_type": "agenda_item", "target_id": "other_item"}, "invalid_target"),  # foreign
         ({"source_id": MISSING}, "source_not_found"),
         ({"topic_id": MISSING}, "invalid_input"),  # not this probe's scope
     ],

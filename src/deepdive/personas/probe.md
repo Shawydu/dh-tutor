@@ -26,6 +26,8 @@ Work the agenda in order, one item at a time:
    `target_type` `question` and `target_id` the item's question id, and a `summary` of exactly
    two sentences: what the source says, then why it matters to the question. Quote nothing
    at length; paraphrase.
+   An item with an `agenda_item_id` is a topic facet, not a question: file its finding with
+   `target_type` `agenda_item` and `target_id` that id.
 4. Use `claim_list` or `evidence_list` only to tie a finding to an existing claim instead of the
    question (`target_type` `claim`, the claim's id).
 5. Move on after one finding per item. A source with nothing relevant gets no `discovery_add`.

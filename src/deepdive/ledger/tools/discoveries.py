@@ -7,6 +7,7 @@ from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Finding, Id
 from deepdive.ledger.tools._common import Tools
 from deepdive.store.enums import DiscoveryEffect, DiscoveryTargetType
+from deepdive.store.repos.discoveries import target_text
 
 
 class DiscoveryTools(Tools):
@@ -26,7 +27,7 @@ class DiscoveryTools(Tools):
         target_id: Id,
         summary: Finding,
     ) -> dict[str, Any]:
-        """Record a finding (two-sentence summary) about a question or claim of this topic.
+        """Record a finding (two-sentence summary) on a question, claim or agenda item of the topic.
 
         The source must be registered (from search or fetch) and not already cited by the topic.
         The engine scores relevance and effect; a finding below the threshold is dropped
@@ -40,7 +41,7 @@ class DiscoveryTools(Tools):
             topic_id, source_id, target_type, target_id
         )  # pre-classify
         source = store.sources.require(source_id)
-        text = target.clean_text if hasattr(target, "clean_text") else target.text
+        text = target_text(target)
         state = (
             f"Finding ({source.url or source.doi}): {summary}\n{target_type} of the topic: {text}"
         )

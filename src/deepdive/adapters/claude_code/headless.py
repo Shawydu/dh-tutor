@@ -28,7 +28,12 @@ class ClaudeProbe:
         lines = [_persona("_shared")[1], _persona("probe")[1], "# This run", ""]
         lines += [f"probe_run_id: {run_id}", f"topic_id: {topic_id}", "", "Agenda:"]
         for n, item in enumerate(agenda, start=1):
-            lines.append(f"{n}. [{item.kind}] question_id {item.question_id}: {item.question}")
+            ref = (
+                f"question_id {item.question_id}"
+                if item.question_id
+                else f"agenda_item_id {item.agenda_item_id}"
+            )
+            lines.append(f"{n}. [{item.kind}] {ref}: {item.question}")
             lines += [f"   - query: {q}" for q in item.queries]
         return "\n".join(lines)
 

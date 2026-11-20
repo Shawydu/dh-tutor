@@ -3,21 +3,31 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from deepdive.config import ProbeConfig
-from deepdive.store.enums import QuestionAsker, QuestionEdgeRelation, QuestionStatus
+from deepdive.store.enums import (
+    QuestionAsker,
+    QuestionEdgeRelation,
+    QuestionStatus,
+)
 from deepdive.store.models import Question
 from deepdive.store.repos import Store
 
 # Lower ranks first. Within a rank, oldest first (ids are time-ordered).
 KINDS = ("clash", "agenda", "frontier", "challenge", "open")
 _WORD = re.compile(r"[^\W_]{4,}")
+MAX_QUERY = 120
+_TERM_SPLIT = re.compile(r"[:,;]")
 
 
 @dataclass(frozen=True)
 class AgendaEntry:
-    question_id: UUID
+    """One search target: an unresolved question (question_id) or an open agenda facet
+    (question_id None, agenda_item_id set; `question` then holds the facet text)."""
+
+    question_id: UUID | None
     kind: str
     question: str
     queries: list[str]
+    agenda_item_id: UUID | None = None
 
 
 class AgendaBuilder:
@@ -39,6 +49,8 @@ class AgendaBuilder:
             q for q in self.store.frontier.list_for_topic(topic_id) if q.status in unresolved
         ]
         questions += [q for q in frontier if q.id not in have]
+        # a re-asked question is stored again with a `same` edge; research only the earliest
+        questions = [q for q in questions if not self._repeat_of_earlier(q)]
         frontier_ids = {q.id for q in frontier}
         item = self.store.agenda.next_open(topic_id)
         facet_words = set(_WORD.findall(item.facet.casefold())) if item else set()
@@ -56,11 +68,27 @@ class AgendaBuilder:
                 return "frontier"
             return "challenge" if q.asker == QuestionAsker.SKEPTIC else "open"
 
-        ranked = sorted((KINDS.index(kind(q)), q.id, q) for q in questions)
-        return [
+        ranked = sorted(((KINDS.index(kind(q)), q.id, q) for q in questions), key=lambda r: r[:2])
+        entries = [
             AgendaEntry(q.id, KINDS[rank], q.clean_text, self._queries(q.clean_text, keywords))
-            for rank, _, q in ranked[: self.limit]
+            for rank, _, q in ranked
         ]
+        if item:  # one facet per run, after every question: the nightly probe walks them in order
+            entries.append(
+                AgendaEntry(
+                    None, "agenda", item.facet, self._queries(item.facet, keywords), item.id
+                )
+            )
+        return entries[: self.limit]
+
+    def _repeat_of_earlier(self, question: Question) -> bool:
+        """A `same` edge to any earlier question, whatever its status (ids are time-ordered)."""
+        return any(
+            e.relation == QuestionEdgeRelation.SAME
+            and min(e.from_id, e.to_id) < question.id
+            and question.id in (e.from_id, e.to_id)
+            for e in self.store.edges.list_for_question(question.id)
+        )
 
     def _clashes(self, question: Question) -> bool:
         edges = self.store.edges.list_for_question(question.id)
@@ -68,7 +96,20 @@ class AgendaBuilder:
 
     @staticmethod
     def _queries(text: str, keywords: list[str]) -> list[str]:
-        """The question as asked, then with one and two charter scope terms the text lacks added:
-        terms narrow the search to the topic's map, and the plain form keeps recall."""
-        extra = [k for k in keywords if k.casefold() not in text.casefold()]
-        return [text] + [f"{text} {' '.join(extra[:n])}" for n in (1, 2) if len(extra) >= n]
+        """The text as asked (capped), then one variant with up to 3 charter terms it lacks:
+        the plain form keeps recall, the terms narrow the search to the topic's map."""
+        if len(text) > MAX_QUERY:
+            cut = text[: MAX_QUERY + 1]
+            text = (
+                cut[:-1] if cut[-1] == " " else (cut.rsplit(" ", 1)[0] if " " in cut else cut[:-1])
+            )
+        extra: list[str] = []
+        for term in (t.strip() for k in keywords for t in _TERM_SPLIT.split(k)):
+            if (
+                len(term) >= 3
+                and term.casefold() not in text.casefold()
+                and term not in extra
+                and len(f"{text} {' '.join([*extra, term])}") <= MAX_QUERY
+            ):
+                extra.append(term)
+        return [text] + ([f"{text} {' '.join(extra[:3])}"] if extra else [])

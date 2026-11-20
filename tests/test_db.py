@@ -133,6 +133,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             "0005_agent_session",
             "0006_discovery_target",
             "0007_edge_created_at",
+            "0008_discovery_agenda_target",
         ]
         assert db.migrate() == []
         assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
@@ -143,6 +144,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             (5, "0005_agent_session"),
             (6, "0006_discovery_target"),
             (7, "0007_edge_created_at"),
+            (8, "0008_discovery_agenda_target"),
         ]
 
 
