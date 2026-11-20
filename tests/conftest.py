@@ -1,5 +1,4 @@
 import json
-import sqlite3
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -10,7 +9,7 @@ from uuid import UUID
 import pytest
 
 from deepdive import clock
-from deepdive.store.db import connect, migrate
+from deepdive.store.db import Database
 from deepdive.store.enums import (
     ClaimStatus,
     EvidenceStance,
@@ -25,16 +24,15 @@ TOPIC_FIXTURES = Path(__file__).parent / "fixtures" / "topics"
 
 
 @pytest.fixture
-def db(tmp_path: Path) -> Iterator[sqlite3.Connection]:
+def db(tmp_path: Path) -> Iterator[Database]:
     """A fresh, migrated database file; the real schema, no mocks."""
-    conn = connect(tmp_path / "test.db")
-    migrate(conn)
-    yield conn
-    conn.close()
+    with Database(tmp_path / "test.db") as database:
+        database.migrate()
+        yield database
 
 
 @pytest.fixture
-def store(db: sqlite3.Connection) -> Store:
+def store(db: Database) -> Store:
     return Store(db)
 
 

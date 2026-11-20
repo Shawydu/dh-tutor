@@ -1,7 +1,6 @@
 from datetime import datetime
 from uuid import UUID
 
-from deepdive.store.db import transaction
 from deepdive.store.errors import InvalidSourceError, SourceNotFoundError
 from deepdive.store.ids import new_id
 from deepdive.store.models import Source
@@ -34,7 +33,7 @@ class SourceRepo(IdRepo[Source]):
         """
         if not url and not doi:
             raise InvalidSourceError("a source needs a url or a doi")
-        with transaction(self.conn):  # lookup and insert under one write lock: writers agree
+        with self.db.transaction():  # lookup and insert under one write lock: writers agree
             self._check_session(session_id)
             existing = self.find(url=url, doi=doi)
             if existing:

@@ -1,5 +1,4 @@
-import sqlite3
-
+from deepdive.store.db import Database
 from deepdive.store.repos.agenda import AgendaRepo
 from deepdive.store.repos.charters import CharterRepo
 from deepdive.store.repos.claims import ClaimRepo
@@ -13,17 +12,17 @@ from deepdive.store.repos.topics import TopicRepo
 
 
 class Store:
-    """One instance of each repo, all on one connection."""
+    """One instance of each repo, all on one database."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self.conn = conn
-        self.topics = TopicRepo(conn)
-        self.charters = CharterRepo(conn)
-        self.sessions = SessionRepo(conn)
-        self.agenda = AgendaRepo(conn)
-        self.questions = QuestionRepo(conn)
-        self.edges = EdgeRepo(conn)
-        self.sources = SourceRepo(conn)
-        self.claims = ClaimRepo(conn)
-        self.evidence = EvidenceRepo(conn)
-        self.frontier = FrontierRepo(conn)
+    def __init__(self, db: Database) -> None:
+        self.db = db
+        self.topics = TopicRepo(db)
+        self.charters = CharterRepo(db)
+        self.sessions = SessionRepo(db)
+        self.agenda = AgendaRepo(db)
+        self.questions = QuestionRepo(db)
+        self.edges = EdgeRepo(db)
+        self.sources = SourceRepo(db)
+        self.claims = ClaimRepo(db)
+        self.evidence = EvidenceRepo(db)
+        self.frontier = FrontierRepo(db)

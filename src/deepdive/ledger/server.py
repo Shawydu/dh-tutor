@@ -25,7 +25,7 @@ from deepdive.ledger.tools.sessions import SessionTools
 from deepdive.ledger.tools.topics import TopicTools
 from deepdive.ledger.tools.web import WebTools
 from deepdive.paths import Paths
-from deepdive.store.db import connect, migrate
+from deepdive.store.db import Database
 from deepdive.store.errors import StoreError
 
 INSTRUCTIONS = (
@@ -100,9 +100,11 @@ def create_server(
     """
     paths = paths or Paths.from_env()
     paths.ensure_dirs()
-    conn = connect(paths.db)
-    migrate(conn)
-    ctx = LedgerContext(conn=conn, paths=paths)
+    db = Database(paths.db)
+    db.migrate()
+    # shortcut: the connection lives as long as the server process and is never closed; add a
+    # close hook if the server ever outlives its database
+    ctx = LedgerContext(db=db, paths=paths)
     server = LedgerServer(ctx)
     config = load_config(paths.config)
     for tools in (

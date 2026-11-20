@@ -25,8 +25,8 @@ class EvidenceRepo(IdRepo[Evidence]):
         transaction, so it must not open one."""
         from deepdive.store.repos.claims import ClaimRepo  # claims.py imports this module
 
-        ClaimRepo(self.conn).require(claim_id)
-        SourceRepo(self.conn).require(source_id)
+        ClaimRepo(self.db).require(claim_id)
+        SourceRepo(self.db).require(source_id)
         self._check_session(session_id)
         evidence_id = new_id()
         self.conn.execute(

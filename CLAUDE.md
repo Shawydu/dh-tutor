@@ -29,7 +29,7 @@ A local, single-user learning engine for software engineering topics. A user giv
 - SQL lives in `src/deepdive/store/migrations/NNNN_name.sql`. Never edit an applied migration; add a new one.
 ## Schema and type conventions
 
-SQLite has no UUID, timestamp or enum types. The schema declares them by name, enforces them with CHECKs and lookup tables, and `connect()` maps the declared names to real Python types. A new column follows these rules from the day it is added. `test_columns_follow_the_type_conventions` in `tests/test_db.py` fails on a column that doesn't.
+SQLite has no UUID, timestamp or enum types. The schema declares them by name, enforces them with CHECKs and lookup tables, and `Database` maps the declared names to real Python types. A new column follows these rules from the day it is added. `test_columns_follow_the_type_conventions` in `tests/test_db.py` fails on a column that doesn't.
 
 - **Ids are UUIDs.** Every `id` primary key and every `*_id` column is declared `UUID`: lowercase hyphenated UUIDv7 text from `deepdive.store.ids.new_id()`. It is time-ordered to the millisecond within a process; across processes (server, hook, CLI) ties can sort either way, so use a `*_at` column when order matters. A single-column UUID primary key carries the shape CHECK copied from `0001_init.sql`. Never `INTEGER PRIMARY KEY`, never `lastrowid`.
 - **Instants are `TIMESTAMP`.** Any column holding a date or time is declared `TIMESTAMP`, named `*_at`, stored as UTC `YYYY-MM-DDTHH:MM:SSZ`, and carries the round-trip CHECK `col IS strftime('%Y-%m-%dT%H:%M:%SZ', col)`. Repos take and return aware `datetime`s, never strings. Callers pass `clock.now()`.
@@ -59,7 +59,7 @@ SQLite has no UUID, timestamp or enum types. The schema declares them by name, e
 
 ## Code structure: classes over module functions
 
-New features follow this pattern, and older modules are moved onto it one module per step (done: `store/repos`, `ledger/tools`, `LedgerContext`, `search/cache`, `search/fetch`; candidates: `adapters/claude_code/install`, `store/db`).
+New features follow this pattern, and older modules are moved onto it one module per step (done: `store/repos`, `ledger/tools`, `LedgerContext`, `search/cache`, `search/fetch`, `adapters/claude_code/install`, `store/db`; no candidates left).
 
 - A module's behaviour lives in a class that holds its context (a connection, `Paths`, config) in `__init__`; methods don't take that context as a parameter.
 - What sibling classes share goes into a parent class or a `_common` module (e.g. `store/repos/_common.py`: `Repo[M]` with `_many`, `_one`; `IdRepo[M]` adds `get`, `exists`, `require` for tables keyed by `id`); each child sets its class attributes (`table`, `model`, `not_found`) and adds only its own methods.

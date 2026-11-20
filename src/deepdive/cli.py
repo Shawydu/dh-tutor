@@ -7,7 +7,7 @@ import typer
 
 from deepdive.config import DEFAULT_CONFIG_TOML, ConfigError, Secrets, load_config
 from deepdive.paths import Paths
-from deepdive.store.db import applied_migrations, connect, migrate, table_counts
+from deepdive.store.db import Database
 
 app = typer.Typer(no_args_is_help=True, help="Local deep-dive learning engine.")
 config_app = typer.Typer(no_args_is_help=True, help="Inspect and create the config file.")
@@ -37,16 +37,17 @@ def init(
     check: Annotated[bool, typer.Option("--check", help="Report drift; change nothing.")] = False,
 ) -> None:
     """Generate the Claude Code workspace, or with --check report generated files that drifted."""
-    from deepdive.adapters.claude_code.install import InstallError, drift, install
+    from deepdive.adapters.claude_code.install import InstallError, Workspace
 
     target = workspace or Paths.from_env().workspace
+    ws = Workspace(target)
     if check:
-        stale = drift(target)
+        stale = ws.drift()
         for rel in stale:
             typer.echo(f"drift: {rel}")
         raise typer.Exit(1 if stale else 0)
     try:
-        changed = install(target)
+        changed = ws.install()
     except InstallError as err:
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from err
@@ -93,8 +94,8 @@ def db_migrate() -> None:
     """Create the database if needed and apply pending migrations."""
     paths = Paths.from_env()
     paths.ensure_dirs()
-    conn = connect(paths.db)
-    applied = migrate(conn)
+    with Database(paths.db) as db:
+        applied = db.migrate()
     typer.echo(
         f"{paths.db}: applied {', '.join(applied)}" if applied else f"{paths.db}: up to date"
     )
@@ -107,15 +108,15 @@ def db_info() -> None:
     if not paths.db.exists():
         typer.echo(f"no database at {paths.db}; run `deepdive db migrate`", err=True)
         raise typer.Exit(1)
-    conn = connect(paths.db)
-    typer.echo(f"database: {paths.db}")
-    try:
-        rows = applied_migrations(conn)
-        typer.echo("migrations:")
-        for name, applied_at in rows:
-            typer.echo(f"  {name} (applied {applied_at.isoformat()})")
-    except sqlite3.OperationalError:  # file exists but was never migrated
-        typer.echo("migrations: none (run `deepdive db migrate`)")
-    typer.echo("tables:")
-    for name, count in table_counts(conn).items():
-        typer.echo(f"  {name}: {count}")
+    with Database(paths.db) as db:
+        typer.echo(f"database: {paths.db}")
+        try:
+            rows = db.applied_migrations()
+            typer.echo("migrations:")
+            for name, applied_at in rows:
+                typer.echo(f"  {name} (applied {applied_at.isoformat()})")
+        except sqlite3.OperationalError:  # file exists but was never migrated
+            typer.echo("migrations: none (run `deepdive db migrate`)")
+        typer.echo("tables:")
+        for name, count in db.table_counts().items():
+            typer.echo(f"  {name}: {count}")

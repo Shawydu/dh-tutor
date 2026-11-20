@@ -1,12 +1,12 @@
 """The base class the repos share: typed row fetching and existence checks."""
 
-import sqlite3
 from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
 
+from deepdive.store.db import Database
 from deepdive.store.errors import NotFoundError, SessionNotFoundError
 
 type Params = Sequence[Any]
@@ -19,8 +19,9 @@ class Repo[M: BaseModel]:
     table: str
     model: type[M]
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self.conn = conn
+    def __init__(self, db: Database) -> None:
+        self.db = db
+        self.conn = db.conn
 
     def _many(self, tail: str = "", params: Params = ()) -> list[M]:
         """`SELECT <model fields> FROM table <tail>` as models; `tail` is WHERE/JOIN/ORDER BY."""

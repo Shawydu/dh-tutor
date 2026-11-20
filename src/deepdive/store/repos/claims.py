@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from deepdive.store.db import transaction
 from deepdive.store.enums import ClaimStatus, EvidenceStance
 from deepdive.store.errors import ClaimNotFoundError, SourceRequiredError
 from deepdive.store.ids import new_id
@@ -34,15 +33,15 @@ class ClaimRepo(IdRepo[Claim]):
         """
         if not source_ids:
             raise SourceRequiredError("a claim must cite at least one source")
-        with transaction(self.conn):
-            TopicRepo(self.conn).require(topic_id)
+        with self.db.transaction():
+            TopicRepo(self.db).require(topic_id)
             self._check_session(session_id)
             claim_id = new_id()
             self.conn.execute(
                 "INSERT INTO claim (id, topic_id, text, status, session_id) VALUES (?, ?, ?, ?, ?)",
                 (claim_id, topic_id, text, status, session_id),
             )
-            evidence = EvidenceRepo(self.conn)
+            evidence = EvidenceRepo(self.db)
             for source_id in dict.fromkeys(source_ids):
                 evidence.insert(claim_id, source_id, stance, excerpt_summary, session_id)
         claim = self.get(claim_id)

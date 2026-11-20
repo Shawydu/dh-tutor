@@ -18,7 +18,7 @@ class SessionRepo(IdRepo[Session]):
     def start(self, topic_id: UUID, *, at: datetime) -> Session:
         """Open a session for the topic; `at` is an aware datetime (the store never reads the
         clock)."""
-        TopicRepo(self.conn).require(topic_id)
+        TopicRepo(self.db).require(topic_id)
         session_id = new_id()
         self.conn.execute(
             "INSERT INTO session (id, topic_id, started_at) VALUES (?, ?, ?)",
@@ -37,9 +37,9 @@ class SessionRepo(IdRepo[Session]):
         """Replace the session's bookmark with exactly these fields."""
         self.require(session_id)
         if agenda_item_id is not None:
-            AgendaRepo(self.conn).require(agenda_item_id)
+            AgendaRepo(self.db).require(agenda_item_id)
         if question_id is not None:
-            QuestionRepo(self.conn).require(question_id)
+            QuestionRepo(self.db).require(question_id)
         mark = Bookmark(agenda_item_id=agenda_item_id, question_id=question_id, note=note)
         self.conn.execute(
             "UPDATE session SET bookmark = ? WHERE id = ?", (mark.model_dump_json(), session_id)

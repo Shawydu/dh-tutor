@@ -21,7 +21,7 @@ class EdgeRepo(Repo[QuestionEdge]):
     ) -> QuestionEdge:
         """Record how `from_id` relates to `to_id`; re-classifying the same pair replaces the
         edge."""
-        questions = QuestionRepo(self.conn)
+        questions = QuestionRepo(self.db)
         questions.require(from_id)
         questions.require(to_id)
         self.conn.execute(

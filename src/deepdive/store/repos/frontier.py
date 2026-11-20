@@ -14,8 +14,8 @@ class FrontierRepo(Repo[Question]):
 
     def add(self, topic_id: UUID, question_id: UUID) -> None:
         """Put the question on the topic's frontier; adding it twice is a no-op."""
-        TopicRepo(self.conn).require(topic_id)
-        QuestionRepo(self.conn).require(question_id)
+        TopicRepo(self.db).require(topic_id)
+        QuestionRepo(self.db).require(question_id)
         self.conn.execute(
             "INSERT OR IGNORE INTO frontier (topic_id, question_id) VALUES (?, ?)",
             (topic_id, question_id),

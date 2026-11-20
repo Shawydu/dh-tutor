@@ -2,7 +2,6 @@ import json
 from collections.abc import Sequence
 from uuid import UUID
 
-from deepdive.store.db import transaction
 from deepdive.store.enums import TopicStatus
 from deepdive.store.models import Charter
 from deepdive.store.repos._common import Repo
@@ -24,8 +23,8 @@ class CharterRepo(Repo[Charter]):
         session_id: UUID | None = None,
     ) -> Charter:
         """Store a new charter version: 1 for a topic's first, then one more each time."""
-        with transaction(self.conn):
-            TopicRepo(self.conn).require(topic_id)
+        with self.db.transaction():
+            TopicRepo(self.db).require(topic_id)
             self._check_session(session_id)
             version = self.conn.execute(
                 "SELECT COALESCE(MAX(version), 0) + 1 FROM charter WHERE topic_id = ?",

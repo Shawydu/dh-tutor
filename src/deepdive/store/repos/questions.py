@@ -40,7 +40,7 @@ class QuestionRepo(IdRepo[Question]):
         session_id: UUID | None = None,
         status: QuestionStatus = QuestionStatus.OPEN,
     ) -> Question:
-        TopicRepo(self.conn).require(topic_id)
+        TopicRepo(self.db).require(topic_id)
         self._check_session(session_id)
         question_id = new_id()
         self.conn.execute(

@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from deepdive.store.db import transaction
 from deepdive.store.enums import AgendaItemStatus
 from deepdive.store.errors import AgendaItemNotFoundError
 from deepdive.store.ids import new_id
@@ -23,8 +22,8 @@ class AgendaRepo(IdRepo[AgendaItem]):
         The schema has no charter-version column, so "items for a charter version" means the
         topic's current agenda; the previous items (and their done status) are dropped.
         """
-        with transaction(self.conn):
-            TopicRepo(self.conn).require(topic_id)
+        with self.db.transaction():
+            TopicRepo(self.db).require(topic_id)
             self._check_session(session_id)
             self.conn.execute("DELETE FROM agenda_item WHERE topic_id = ?", (topic_id,))
             self.conn.executemany(

@@ -1,10 +1,10 @@
-import sqlite3
 from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
 
 from deepdive import clock
+from deepdive.store.db import Database
 from deepdive.store.errors import InvalidSourceError
 from deepdive.store.ids import new_id
 from deepdive.store.repos import Store
@@ -18,12 +18,12 @@ def _register(store: Store, **ids: str | None) -> UUID:
     ).id
 
 
-def test_same_url_twice_returns_the_same_source(store: Store, db: sqlite3.Connection) -> None:
+def test_same_url_twice_returns_the_same_source(store: Store, db: Database) -> None:
     """Registering the same url twice returns the same source."""
     first = _register(store, url="https://example.com/a")
     assert _register(store, url="https://example.com/a") == first
     assert _register(store, url="https://example.com/b") != first
-    count = db.execute("SELECT COUNT(*) FROM source WHERE url = ?", ("https://example.com/a",))
+    count = db.conn.execute("SELECT COUNT(*) FROM source WHERE url = ?", ("https://example.com/a",))
     assert count.fetchone()[0] == 1
 
 
@@ -58,9 +58,9 @@ def test_get_find_exists(store: Store, frozen_clock: object) -> None:
 
 @pytest.mark.parametrize("ids", [{}, {"url": ""}, {"url": None, "doi": ""}])
 def test_a_source_needs_a_url_or_a_doi(
-    store: Store, db: sqlite3.Connection, ids: dict[str, str | None]
+    store: Store, db: Database, ids: dict[str, str | None]
 ) -> None:
     """A source with neither url nor doi is refused and nothing is stored."""
     with pytest.raises(InvalidSourceError):
         _register(store, **ids)
-    assert db.execute("SELECT COUNT(*) FROM source").fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM source").fetchone()[0] == 0

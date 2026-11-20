@@ -7,7 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from deepdive.cli import app
-from deepdive.store.db import connect, migrate, table_counts
+from deepdive.store.db import Database
 from deepdive.store.enums import (
     AgendaItemStatus,
     ClaimStatus,
@@ -76,9 +76,9 @@ ID1, ID2, MISSING = u(1), u(2), u(999)
 
 
 @pytest.fixture
-def seeded(db: sqlite3.Connection) -> sqlite3.Connection:
+def seeded(db: Database) -> sqlite3.Connection:
     """One row of everything the foreign keys point at; ids are u(1) (two questions: u(1), u(2))."""
-    db.executescript(
+    db.conn.executescript(
         f"""
         INSERT INTO topic (id, title, status) VALUES ('{ID1}', 'threads', 'active');
         INSERT INTO session (id, topic_id, started_at) VALUES ('{ID1}', '{ID1}', '{NOW}');
@@ -93,7 +93,7 @@ def seeded(db: sqlite3.Connection) -> sqlite3.Connection:
             VALUES ('{ID1}', '{NOW}', '[]', 'ok');
         """
     )
-    return db
+    return db.conn
 
 
 def tables(conn: sqlite3.Connection) -> set[str]:
@@ -101,14 +101,14 @@ def tables(conn: sqlite3.Connection) -> set[str]:
     return {name for (name,) in rows if not name.startswith("sqlite_")}
 
 
-def test_migrate_creates_every_design_table(db: sqlite3.Connection) -> None:
-    assert tables(db) == DESIGN_TABLES | EXTRA_TABLES
-    assert set(table_counts(db)) == DESIGN_TABLES | EXTRA_TABLES
+def test_migrate_creates_every_design_table(db: Database) -> None:
+    assert tables(db.conn) == DESIGN_TABLES | EXTRA_TABLES
+    assert set(db.table_counts()) == DESIGN_TABLES | EXTRA_TABLES
 
 
-def test_columns_follow_the_type_conventions(db: sqlite3.Connection) -> None:
+def test_columns_follow_the_type_conventions(db: Database) -> None:
     """Every id is a UUID, every `*_at` a TIMESTAMP and vice versa."""
-    cols = db.execute(
+    cols = db.conn.execute(
         "SELECT t.name, c.name, c.type FROM pragma_table_list t, pragma_table_info(t.name) c"
         " WHERE t.schema = 'main' AND t.name NOT LIKE 'sqlite_%' AND t.type = 'table'"
     ).fetchall()
@@ -120,26 +120,28 @@ def test_columns_follow_the_type_conventions(db: sqlite3.Connection) -> None:
 
 
 def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
-    conn = connect(tmp_path / "twice.db")
-    assert migrate(conn) == ["0001_init", "0002_frontier", "0003_activate_chartered_topics"]
-    assert migrate(conn) == []
-    assert conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
-        (1, "0001_init"),
-        (2, "0002_frontier"),
-        (3, "0003_activate_chartered_topics"),
-    ]
+    with Database(tmp_path / "twice.db") as db:
+        assert db.migrate() == ["0001_init", "0002_frontier", "0003_activate_chartered_topics"]
+        assert db.migrate() == []
+        assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
+            (1, "0001_init"),
+            (2, "0002_frontier"),
+            (3, "0003_activate_chartered_topics"),
+        ]
 
 
-def test_connect_sets_pragmas(db: sqlite3.Connection) -> None:
-    assert db.execute("PRAGMA journal_mode").fetchone() == ("wal",)
-    assert db.execute("PRAGMA foreign_keys").fetchone() == (1,)
-    assert db.execute("PRAGMA busy_timeout").fetchone() == (5000,)
+def test_connect_sets_pragmas(db: Database) -> None:
+    assert db.conn.execute("PRAGMA journal_mode").fetchone() == ("wal",)
+    assert db.conn.execute("PRAGMA foreign_keys").fetchone() == (1,)
+    assert db.conn.execute("PRAGMA busy_timeout").fetchone() == (5000,)
 
 
 def test_connect_creates_missing_file_and_reopens_migrated(tmp_path: Path) -> None:
     path = tmp_path / "again.db"
-    migrate(connect(path))
-    assert migrate(connect(path)) == []
+    with Database(path) as first:
+        first.migrate()
+    with Database(path) as second:
+        assert second.migrate() == []
 
 
 # --- migration runner, with throwaway migration folders ---------------------------------------
@@ -149,11 +151,11 @@ def test_migrations_apply_in_order_once_each(tmp_path: Path) -> None:
     (tmp_path / "0002_second.sql").write_text("CREATE TABLE second (id INTEGER);")
     (tmp_path / "0001_first.sql").write_text("CREATE TABLE first (id INTEGER);")
     (tmp_path / "notes.txt").write_text("ignored")
-    conn = connect(tmp_path / "order.db")
-    assert migrate(conn, tmp_path) == ["0001_first", "0002_second"]
-    assert migrate(conn, tmp_path) == []
-    (tmp_path / "0003_third.sql").write_text("CREATE TABLE third (id INTEGER);")
-    assert migrate(conn, tmp_path) == ["0003_third"]
+    with Database(tmp_path / "order.db") as db:
+        assert db.migrate(tmp_path) == ["0001_first", "0002_second"]
+        assert db.migrate(tmp_path) == []
+        (tmp_path / "0003_third.sql").write_text("CREATE TABLE third (id INTEGER);")
+        assert db.migrate(tmp_path) == ["0003_third"]
 
 
 def test_failing_migration_leaves_nothing_half_applied(tmp_path: Path) -> None:
@@ -161,22 +163,23 @@ def test_failing_migration_leaves_nothing_half_applied(tmp_path: Path) -> None:
     (tmp_path / "0002_bad.sql").write_text(
         "CREATE TABLE half (id INTEGER);\nINSERT INTO nowhere VALUES (1);"
     )
-    conn = connect(tmp_path / "fail.db")
-    with pytest.raises(sqlite3.OperationalError):
-        migrate(conn, tmp_path)
-    assert tables(conn) == {"ok", "schema_migrations"}
-    assert conn.execute("SELECT version FROM schema_migrations").fetchall() == [(1,)]
-    assert not conn.in_transaction
-    # once the file is fixed it applies cleanly, so nothing was marked applied
-    (tmp_path / "0002_bad.sql").write_text("CREATE TABLE half (id INTEGER);")
-    assert migrate(conn, tmp_path) == ["0002_bad"]
+    with Database(tmp_path / "fail.db") as db:
+        with pytest.raises(sqlite3.OperationalError):
+            db.migrate(tmp_path)
+        assert tables(db.conn) == {"ok", "schema_migrations"}
+        assert db.conn.execute("SELECT version FROM schema_migrations").fetchall() == [(1,)]
+        assert not db.conn.in_transaction
+        # once the file is fixed it applies cleanly, so nothing was marked applied
+        (tmp_path / "0002_bad.sql").write_text("CREATE TABLE half (id INTEGER);")
+        assert db.migrate(tmp_path) == ["0002_bad"]
 
 
 def test_duplicate_migration_version_is_refused(tmp_path: Path) -> None:
     (tmp_path / "0001_a.sql").write_text("SELECT 1;")
     (tmp_path / "0001_b.sql").write_text("SELECT 1;")
     with pytest.raises(ValueError, match="0001"):
-        migrate(connect(tmp_path / "dup.db"), tmp_path)
+        with Database(tmp_path / "dup.db") as db:
+            db.migrate(tmp_path)
 
 
 # --- topics: one level deep -------------------------------------------------------------------
@@ -189,48 +192,48 @@ def add_topic(conn: sqlite3.Connection, n: int, parent: int | None = None) -> No
     )
 
 
-def test_child_topic_is_allowed(db: sqlite3.Connection) -> None:
-    add_topic(db, 1)
-    add_topic(db, 2, parent=1)
-    add_topic(db, 3, parent=1)
+def test_child_topic_is_allowed(db: Database) -> None:
+    add_topic(db.conn, 1)
+    add_topic(db.conn, 2, parent=1)
+    add_topic(db.conn, 3, parent=1)
 
 
-def test_grandchild_topic_is_rejected(db: sqlite3.Connection) -> None:
-    add_topic(db, 1)
-    add_topic(db, 2, parent=1)
+def test_grandchild_topic_is_rejected(db: Database) -> None:
+    add_topic(db.conn, 1)
+    add_topic(db.conn, 2, parent=1)
     with pytest.raises(sqlite3.DatabaseError, match="one level deep"):
-        add_topic(db, 3, parent=2)
-    assert db.execute("SELECT count(*) FROM topic").fetchone() == (2,)
+        add_topic(db.conn, 3, parent=2)
+    assert db.conn.execute("SELECT count(*) FROM topic").fetchone() == (2,)
 
 
-def test_reparenting_under_a_child_is_rejected(db: sqlite3.Connection) -> None:
-    add_topic(db, 1)
-    add_topic(db, 2, parent=1)
-    add_topic(db, 3)
+def test_reparenting_under_a_child_is_rejected(db: Database) -> None:
+    add_topic(db.conn, 1)
+    add_topic(db.conn, 2, parent=1)
+    add_topic(db.conn, 3)
     with pytest.raises(sqlite3.DatabaseError, match="one level deep"):
-        db.execute("UPDATE topic SET parent_topic_id = ? WHERE id = ?", (u(2), u(3)))
+        db.conn.execute("UPDATE topic SET parent_topic_id = ? WHERE id = ?", (u(2), u(3)))
 
 
-def test_topic_with_children_cannot_become_a_child(db: sqlite3.Connection) -> None:
-    add_topic(db, 1)
-    add_topic(db, 2, parent=1)
-    add_topic(db, 3)
+def test_topic_with_children_cannot_become_a_child(db: Database) -> None:
+    add_topic(db.conn, 1)
+    add_topic(db.conn, 2, parent=1)
+    add_topic(db.conn, 3)
     with pytest.raises(sqlite3.DatabaseError, match="one level deep"):
-        db.execute("UPDATE topic SET parent_topic_id = ? WHERE id = ?", (u(3), u(1)))
+        db.conn.execute("UPDATE topic SET parent_topic_id = ? WHERE id = ?", (u(3), u(1)))
 
 
-def test_reparenting_a_leaf_topic_is_allowed(db: sqlite3.Connection) -> None:
-    add_topic(db, 1)
-    add_topic(db, 2)
-    add_topic(db, 3, parent=1)
-    db.execute("UPDATE topic SET parent_topic_id = ? WHERE id = ?", (u(2), u(3)))
-    db.execute("UPDATE topic SET parent_topic_id = NULL WHERE id = ?", (u(3),))
+def test_reparenting_a_leaf_topic_is_allowed(db: Database) -> None:
+    add_topic(db.conn, 1)
+    add_topic(db.conn, 2)
+    add_topic(db.conn, 3, parent=1)
+    db.conn.execute("UPDATE topic SET parent_topic_id = ? WHERE id = ?", (u(2), u(3)))
+    db.conn.execute("UPDATE topic SET parent_topic_id = NULL WHERE id = ?", (u(3),))
 
 
-def test_topic_cannot_be_its_own_parent(db: sqlite3.Connection) -> None:
-    add_topic(db, 1)
+def test_topic_cannot_be_its_own_parent(db: Database) -> None:
+    add_topic(db.conn, 1)
     with pytest.raises(sqlite3.IntegrityError):
-        db.execute("UPDATE topic SET parent_topic_id = ? WHERE id = ?", (ID1, ID1))
+        db.conn.execute("UPDATE topic SET parent_topic_id = ? WHERE id = ?", (ID1, ID1))
 
 
 # --- question full-text index -----------------------------------------------------------------
@@ -369,9 +372,9 @@ def test_check_constraints(seeded: sqlite3.Connection, sql: str, good: object, b
 
 @pytest.mark.parametrize(("table", "column", "enum_table"), ENUM_COLUMNS)
 def test_enum_column_references_its_lookup_table(
-    db: sqlite3.Connection, table: str, column: str, enum_table: str
+    db: Database, table: str, column: str, enum_table: str
 ) -> None:
-    fks = {(fk[3], fk[2]) for fk in db.execute(f"PRAGMA foreign_key_list({table})")}
+    fks = {(fk[3], fk[2]) for fk in db.conn.execute(f"PRAGMA foreign_key_list({table})")}
     assert (column, enum_table) in fks
 
 
@@ -385,14 +388,14 @@ def test_unknown_enum_value_is_rejected(seeded: sqlite3.Connection) -> None:
     seeded.execute(sql, ("explained_back",))
 
 
-def test_enum_tables_match_the_python_enums(db: sqlite3.Connection) -> None:
+def test_enum_tables_match_the_python_enums(db: Database) -> None:
     for enum in (
         TopicStatus, AgendaItemStatus, QuestionAsker, QuestionStatus, QuestionEdgeRelation,
         ClaimStatus, EvidenceStance, ProbeRunStatus, DiscoveryEffect, KnowledgeEvidenceKind,
         KnowledgeEvidenceGrade,
     ):  # fmt: skip
         table = "".join("_" + c.lower() if c.isupper() else c for c in enum.__name__).lstrip("_")
-        values = {v for (v,) in db.execute(f"SELECT value FROM {table}")}
+        values = {v for (v,) in db.conn.execute(f"SELECT value FROM {table}")}
         assert values == {m.value for m in enum}, table
 
 
@@ -402,9 +405,11 @@ def test_enum_tables_match_the_python_enums(db: sqlite3.Connection) -> None:
 @pytest.mark.parametrize(
     "bad_id", ["1", "not-a-uuid", u(10).upper(), u(1)[:-1], u(1) + "0", u(1).replace("0", "g", 1)]
 )
-def test_malformed_ids_are_rejected(db: sqlite3.Connection, bad_id: str) -> None:
+def test_malformed_ids_are_rejected(db: Database, bad_id: str) -> None:
     with pytest.raises(sqlite3.IntegrityError, match="CHECK"):
-        db.execute("INSERT INTO topic (id, title, status) VALUES (?, 't', 'active')", (bad_id,))
+        db.conn.execute(
+            "INSERT INTO topic (id, title, status) VALUES (?, 't', 'active')", (bad_id,)
+        )
 
 
 @pytest.mark.parametrize(
@@ -412,27 +417,29 @@ def test_malformed_ids_are_rejected(db: sqlite3.Connection, bad_id: str) -> None
     ["2026-01-01", "2026-01-01T00:00:00", "2026-01-01 00:00:00Z", "2026-01-01T00:00:00+00:00",
      "2026-13-01T00:00:00Z", "yesterday"],
 )  # fmt: skip
-def test_malformed_timestamps_are_rejected(db: sqlite3.Connection, bad_time: str) -> None:
-    db.execute("INSERT INTO topic (id, title, status) VALUES (?, 't', 'active')", (ID1,))
+def test_malformed_timestamps_are_rejected(db: Database, bad_time: str) -> None:
+    db.conn.execute("INSERT INTO topic (id, title, status) VALUES (?, 't', 'active')", (ID1,))
     with pytest.raises(sqlite3.IntegrityError, match="CHECK"):
-        db.execute(
+        db.conn.execute(
             "INSERT INTO session (id, topic_id, started_at) VALUES (?, ?, ?)", (ID1, ID1, bad_time)
         )
 
 
-def test_rows_come_back_as_uuid_and_aware_datetime(db: sqlite3.Connection) -> None:
-    db.execute("INSERT INTO topic (id, title, status) VALUES (?, 't', 'active')", (ID1,))
+def test_rows_come_back_as_uuid_and_aware_datetime(db: Database) -> None:
+    db.conn.execute("INSERT INTO topic (id, title, status) VALUES (?, 't', 'active')", (ID1,))
     when = datetime(2026, 1, 1, 12, tzinfo=timezone(timedelta(hours=2)))  # stored as UTC
-    db.execute("INSERT INTO session (id, topic_id, started_at) VALUES (?, ?, ?)", (ID1, ID1, when))
-    row = db.execute("SELECT id, topic_id, started_at, ended_at FROM session").fetchone()
+    db.conn.execute(
+        "INSERT INTO session (id, topic_id, started_at) VALUES (?, ?, ?)", (ID1, ID1, when)
+    )
+    row = db.conn.execute("SELECT id, topic_id, started_at, ended_at FROM session").fetchone()
     assert row == (UUID(ID1), UUID(ID1), datetime(2026, 1, 1, 10, tzinfo=UTC), None)
     assert row[2].tzinfo is UTC
-    assert db.execute("SELECT started_at FROM session").fetchone()[0] == when
-    assert db.execute("SELECT CAST(started_at AS TEXT) FROM session").fetchone() == (
+    assert db.conn.execute("SELECT started_at FROM session").fetchone()[0] == when
+    assert db.conn.execute("SELECT CAST(started_at AS TEXT) FROM session").fetchone() == (
         "2026-01-01T10:00:00Z",
     )
     with pytest.raises(ValueError, match="naive"):
-        db.execute("UPDATE session SET ended_at = ?", (datetime(2026, 1, 1),))
+        db.conn.execute("UPDATE session SET ended_at = ?", (datetime(2026, 1, 1),))
 
 
 def test_question_embedding_is_an_optional_blob(seeded: sqlite3.Connection) -> None:
@@ -518,24 +525,24 @@ def test_cannot_delete_a_row_that_is_referenced(seeded: sqlite3.Connection) -> N
         seeded.execute("DELETE FROM topic WHERE id = ?", (ID1,))
 
 
-def test_every_foreign_key_column_has_an_index(db: sqlite3.Connection) -> None:
+def test_every_foreign_key_column_has_an_index(db: Database) -> None:
     missing: list[str] = []
     for table in sorted(DESIGN_TABLES):
-        pk = [r[1] for r in db.execute(f"PRAGMA table_info({table})") if r[5]]
+        pk = [r[1] for r in db.conn.execute(f"PRAGMA table_info({table})") if r[5]]
         leading = {pk[0]} if len(pk) == 1 else set()  # a single-column primary key is indexed
-        for _, name, *_ in db.execute(f"PRAGMA index_list({table})"):
-            leading.add(db.execute(f"PRAGMA index_info({name})").fetchone()[2])
+        for _, name, *_ in db.conn.execute(f"PRAGMA index_list({table})"):
+            leading.add(db.conn.execute(f"PRAGMA index_info({name})").fetchone()[2])
         missing += [
             f"{table}.{fk[3]}"
-            for fk in db.execute(f"PRAGMA foreign_key_list({table})")
+            for fk in db.conn.execute(f"PRAGMA foreign_key_list({table})")
             if fk[3] not in leading and fk[2] not in ENUM_TABLES  # lookup tables are tiny
         ]
     assert missing == []
 
 
-def test_next_recap_at_is_indexed(db: sqlite3.Connection) -> None:
-    rows = db.execute("PRAGMA index_list(knowledge_state)").fetchall()
-    leading = {db.execute(f"PRAGMA index_info({r[1]})").fetchone()[2] for r in rows}
+def test_next_recap_at_is_indexed(db: Database) -> None:
+    rows = db.conn.execute("PRAGMA index_list(knowledge_state)").fetchall()
+    leading = {db.conn.execute(f"PRAGMA index_info({r[1]})").fetchone()[2] for r in rows}
     assert "next_recap_at" in leading
 
 
@@ -564,9 +571,9 @@ def test_cli_db_migrate_then_info(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 def test_cli_db_info_counts_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEEPDIVE_HOME", str(tmp_path))
     runner.invoke(app, ["db", "migrate"])
-    conn = connect(tmp_path / "deepdive.db")
-    add_topic(conn, 1)
-    add_topic(conn, 2, parent=1)
+    with Database(tmp_path / "deepdive.db") as db:
+        add_topic(db.conn, 1)
+        add_topic(db.conn, 2, parent=1)
     info = runner.invoke(app, ["db", "info"])
     assert "topic: 2" in info.output
 
