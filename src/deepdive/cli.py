@@ -3,7 +3,7 @@ import sys
 from datetime import date
 from importlib import metadata
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 import typer
@@ -11,6 +11,9 @@ import typer
 from deepdive.config import DEFAULT_CONFIG_TOML, ConfigError, Secrets, load_config
 from deepdive.paths import Paths
 from deepdive.store.db import Database
+
+if TYPE_CHECKING:
+    from deepdive.schedule import Scheduler
 
 app = typer.Typer(no_args_is_help=True, help="Local deep-dive learning engine.")
 config_app = typer.Typer(no_args_is_help=True, help="Inspect and create the config file.")
@@ -27,6 +30,8 @@ probe_app = typer.Typer(no_args_is_help=True, help="The overnight probe.")
 app.add_typer(probe_app, name="probe")
 digest_app = typer.Typer(no_args_is_help=True, help="The morning digest.")
 app.add_typer(digest_app, name="digest")
+schedule_app = typer.Typer(no_args_is_help=True, help="Run the probe and digest daily (launchd).")
+app.add_typer(schedule_app, name="schedule")
 
 
 @app.callback()
@@ -275,3 +280,58 @@ def digest_build(
         raise typer.Exit(1) from err
     with Database(paths.db) as db:
         typer.echo(DigestBuilder(Store(db), config.digest.folder(paths.digests)).write(when))
+
+
+def _scheduler() -> "Scheduler":
+    import shutil
+
+    from deepdive.schedule import Scheduler
+
+    if sys.platform != "darwin":
+        typer.echo("schedule works on macOS (launchd) only", err=True)
+        raise typer.Exit(1)
+    uv = shutil.which("uv")
+    if uv is None:
+        typer.echo("uv not found on PATH", err=True)
+        raise typer.Exit(1)
+    paths = Paths.from_env()
+    try:
+        config = load_config(paths.config)
+    except ConfigError as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from err
+    agents = Path("~/Library/LaunchAgents").expanduser()
+    return Scheduler(paths, config, agents, Path(__file__).resolve().parents[2], uv)
+
+
+@schedule_app.command("install")
+def schedule_install() -> None:
+    """Write both launchd plists under ~/Library/LaunchAgents and load them."""
+    from deepdive.schedule import SchedulerError
+
+    try:
+        warnings = _scheduler().install()
+    except SchedulerError as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from err
+    for warning in warnings:
+        typer.echo(f"warning: {warning}", err=True)
+    typer.echo("installed; run `deepdive schedule status` to check")
+    typer.echo(
+        "note: jobs don't see shell env; for Jev/GitHub keys at night run "
+        "`launchctl setenv TYPESAFE_API_KEY ...` (and GITHUB_TOKEN), else fallbacks apply"
+    )
+
+
+@schedule_app.command("remove")
+def schedule_remove() -> None:
+    """Boot both jobs out of launchd and delete their plists."""
+    _scheduler().remove()
+    typer.echo("removed")
+
+
+@schedule_app.command("status")
+def schedule_status() -> None:
+    """Show whether each job is installed and loaded."""
+    for line in _scheduler().status():
+        typer.echo(line)
