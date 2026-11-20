@@ -86,6 +86,13 @@ def test_search_budget_runs_out(web: Ledger) -> None:
     assert tight.call("search", query="c")["error"] == "budget_exhausted"
 
 
+def test_search_rejects_unknown_providers_and_lists_enabled_ones(web: Ledger) -> None:
+    """An unknown provider name is invalid input whose detail names the enabled providers."""
+    out = web.call("search", query="x", providers=["nope"])
+    assert out["error"] == "invalid_input"
+    assert out["detail"] == "unknown providers ['nope']; enabled: ['github', 'arxiv', 'hn']"
+
+
 def test_provider_failure_is_reported_without_message(tmp_path: Path) -> None:
     def boom(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("secret-url-detail")
