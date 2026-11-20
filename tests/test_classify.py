@@ -60,8 +60,8 @@ def test_jev_parses_recorded_fixture_and_sends_documented_request() -> None:
 
     result = jev_with(handler).classify(FIXTURE["request"]["state"], QUESTIONS)
     assert result.provider == "jev"
-    assert result.answers["is_question"].probs == pytest.approx({"yes": 0.97, "no": 0.03})
-    assert result.answers["scope"].top == ("in", 0.92)
+    assert result.answers["is_question"].probs == pytest.approx({"yes": 0.99, "no": 0.01})
+    assert result.answers["scope"].top == ("in", 0.95)
     body = json.loads(seen[0].content)
     assert body["questions"] == FIXTURE["request"]["questions"]
     assert seen[0].headers["authorization"] == f"Bearer {KEY}"

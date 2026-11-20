@@ -69,7 +69,7 @@ class MatchResult(BaseModel):
     def render_context(self) -> str:
         """A compact text block for the hook to inject; always under CONTEXT_MAX characters."""
         lines = [f"Question matcher: {self.kind}"]
-        if self.needs_judgement:
+        if self.needs_judgement and self.related:  # nothing to link otherwise
             lines.append("Low confidence: judge how these relate, then call question_link.")
         lines += [f"- {g}" for g in self.guidance]
         for r in self.related:
