@@ -1,0 +1,28 @@
+{
+  "_note": "HAND-WRITTEN from https://docs.typesafe.ai/primitives/choice and /primitives/noul.md (2026-11-19). Not a real capture: no TYPESAFE_API_KEY was available. Replace with a recorded call when one can be made.",
+  "request": {
+    "model": "jev-latest",
+    "state": "How do I cancel a running asyncio task?",
+    "questions": {
+      "is_question": {"type": "noul", "instructions": "Is the text a question?"},
+      "scope": {
+        "type": "choice",
+        "instructions": "How does the text relate to the topic?",
+        "criteria": {"in": "in", "adjacent": "adjacent", "outside": "outside"}
+      }
+    }
+  },
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "is_question": {"type": "noul", "noul": 0.97},
+      "scope": {
+        "type": "choice",
+        "choice": "in",
+        "confidence": 0.91,
+        "probabilities": {"in": 0.92, "adjacent": 0.06, "outside": 0.02}
+      }
+    },
+    "usage": {"input_tokens": 340, "output_tokens": 37}
+  }
+}

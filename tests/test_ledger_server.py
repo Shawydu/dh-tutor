@@ -14,6 +14,7 @@ from mcp import Client
 from mcp.client.stdio import StdioServerParameters
 
 from deepdive import clock
+from deepdive.classify import Answer, ClassifyResult, Question
 from deepdive.ledger.server import LedgerServer, create_server
 from deepdive.paths import Paths
 from deepdive.store.ids import new_id
@@ -26,7 +27,7 @@ TOOLS = {
     "agenda_set", "agenda_next", "agenda_done",
     "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
     "question_get", "question_answer", "parked_list",
-    "question_record", "question_park", "parked_search",
+    "question_record", "question_park", "parked_search", "question_submit", "question_link",
     "child_topic_create", "child_topic_finish", "frontier_add",
     "search", "fetch",
 }  # fmt: skip
@@ -621,3 +622,73 @@ def test_frontier_add_and_question_park_refuse_foreign_questions(ledger: Ledger)
     )  # no longer open
     bad = ledger.call("question_record", session_id=sid, topic_id=other, asker="user", text="x")
     assert bad["error"] == "invalid_input"
+
+
+def _submit_ledger(tmp_path: Path, relation: str = "same") -> Ledger:
+    """A ledger whose classifier calls every candidate `relation`, in scope."""
+
+    class Fixed:
+        def classify(self, state: str, questions: dict[str, Question]) -> ClassifyResult:
+            def pick(key: str, q: Question) -> Answer:
+                top = "yes" if key == "is_question" else "in" if key == "scope" else relation
+                return Answer(probs={top: 0.99, "x": 0.01})
+
+            return ClassifyResult(
+                answers={k: pick(k, q) for k, q in questions.items()}, provider="fake"
+            )
+
+    paths = Paths(tmp_path)
+    return Ledger(create_server(paths, classifier=Fixed()), paths)
+
+
+def test_question_submit_matches_and_links(tmp_path: Path) -> None:
+    """question_submit stores a matched question with an edge; question_link records the guide's."""
+    ledger = _submit_ledger(tmp_path)
+    tid, sid = _session(ledger)
+    first = ledger.call("question_submit", session_id=sid, topic_id=tid, asker="user", text="GIL?")
+    assert (first["kind"], first["related"]) == ("matched", [])  # no past questions
+    again = ledger.call(
+        "question_submit", session_id=sid, topic_id=tid, asker="user", text="what is the GIL again?"
+    )
+    assert again["related"][0]["id"] == first["question_id"]
+    assert "repeat" in again["context"] or "repeated" in again["context"]
+    assert ledger.count("question_edge") == 1
+    dup = ledger.call(
+        "question_submit", session_id=sid, topic_id=tid, asker="curious", text="the GIL, again?"
+    )
+    assert (dup["kind"], dup["question_id"]) == ("duplicate", None)
+    assert ledger.count("question") == 2
+    link = ledger.call(
+        "question_link", session_id=sid, from_id=again["question_id"],
+        to_id=first["question_id"], relation="builds_on",
+    )  # fmt: skip
+    assert (link["relation"], link["classifier"]) == ("builds_on", "guide")
+    same = first["question_id"]
+    bad = ledger.call("question_link", session_id=sid, from_id=same, to_id=same, relation="same")
+    assert bad["error"] == "invalid_input"
+
+
+def test_question_submit_and_link_validation(tmp_path: Path) -> None:
+    """Blank text is refused; question_link needs both questions in the session's topic and
+    marks a user's `same` link as a repeat."""
+    ledger = _submit_ledger(tmp_path)
+    tid, sid = _session(ledger)
+    blank = ledger.call("question_submit", session_id=sid, topic_id=tid, asker="user", text=" ")
+    assert blank["error"] == "invalid_input"
+    a = ledger.call("question_record", session_id=sid, topic_id=tid, asker="user", text="a?")
+    b = ledger.call("question_record", session_id=sid, topic_id=tid, asker="user", text="b?")
+    other = ledger.call("topic_create", title="other")["id"]
+    osid = ledger.call("session_start", topic_id=other)["id"]
+    c = ledger.call("question_record", session_id=osid, topic_id=other, asker="user", text="c?")
+    cross = ledger.call(
+        "question_link", session_id=sid, from_id=a["id"], to_id=c["id"], relation="same"
+    )
+    assert cross["error"] == "invalid_input"
+    missing = ledger.call(
+        "question_link", session_id=sid, from_id=a["id"], to_id=MISSING, relation="same"
+    )
+    assert missing["error"] == "question_not_found"
+    ok = ledger.call(
+        "question_link", session_id=sid, from_id=a["id"], to_id=b["id"], relation="same"
+    )
+    assert ok["repeat"] is True

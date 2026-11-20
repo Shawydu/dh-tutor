@@ -121,12 +121,18 @@ def test_columns_follow_the_type_conventions(db: Database) -> None:
 
 def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
     with Database(tmp_path / "twice.db") as db:
-        assert db.migrate() == ["0001_init", "0002_frontier", "0003_activate_chartered_topics"]
+        assert db.migrate() == [
+            "0001_init",
+            "0002_frontier",
+            "0003_activate_chartered_topics",
+            "0004_edge_repeat",
+        ]
         assert db.migrate() == []
         assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
             (1, "0001_init"),
             (2, "0002_frontier"),
             (3, "0003_activate_chartered_topics"),
+            (4, "0004_edge_repeat"),
         ]
 
 

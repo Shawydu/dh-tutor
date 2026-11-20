@@ -109,7 +109,8 @@ class Secrets:
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Secrets":
         env = os.environ if env is None else env
         return cls(
-            jev_api_key=env.get("JEV_API_KEY") or None, github_token=env.get("GITHUB_TOKEN") or None
+            jev_api_key=env.get("TYPESAFE_API_KEY") or None,
+            github_token=env.get("GITHUB_TOKEN") or None,
         )
 
     def masked(self) -> dict[str, str]:
@@ -124,7 +125,7 @@ class Secrets:
 
 DEFAULT_CONFIG_TOML = """\
 # deepdive config. Every value below is the default; delete or change what you like.
-# API keys are not set here: export JEV_API_KEY and GITHUB_TOKEN in your environment.
+# API keys are not set here: export TYPESAFE_API_KEY and GITHUB_TOKEN in your environment.
 
 [classifier]
 provider = "jev"            # jev | claude

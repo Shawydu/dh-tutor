@@ -16,6 +16,8 @@ db_app = typer.Typer(no_args_is_help=True, help="Create and inspect the SQLite d
 app.add_typer(db_app, name="db")
 mcp_app = typer.Typer(no_args_is_help=True, help="Run the ledger MCP server.")
 app.add_typer(mcp_app, name="mcp")
+classify_app = typer.Typer(no_args_is_help=True, help="Try the classifier by hand.")
+app.add_typer(classify_app, name="classify")
 
 
 @app.callback()
@@ -72,7 +74,7 @@ def config_show() -> None:
     source = paths.config if paths.config.exists() else "none found, showing defaults"
     typer.echo(f"# config file: {source}")
     typer.echo(config.to_toml())
-    typer.echo("[secrets]  # from env vars JEV_API_KEY and GITHUB_TOKEN")
+    typer.echo("[secrets]  # from env vars TYPESAFE_API_KEY and GITHUB_TOKEN")
     for key, value in Secrets.from_env().masked().items():
         typer.echo(f'{key} = "{value}"')
 
@@ -120,3 +122,33 @@ def db_info() -> None:
         typer.echo("tables:")
         for name, count in db.table_counts().items():
             typer.echo(f"  {name}: {count}")
+
+
+@classify_app.command("try")
+def classify_try(
+    state: Annotated[str, typer.Argument(help="The text the decision is about.")],
+    choice: Annotated[
+        list[str], typer.Option("--choice", help="key:opt1,opt2 ; repeat for more questions.")
+    ],
+) -> None:
+    """Classify STATE with the configured providers (headless policy) and print the answers."""
+    from deepdive.classify import Choice, ClassifierUnavailable, Question, get_classifier
+
+    questions: dict[str, Question] = {}
+    for spec in choice:
+        key, _, opts = spec.partition(":")
+        options = [o for o in opts.split(",") if o]
+        if not key or len(options) < 2:
+            typer.echo(f"bad --choice {spec!r}: expected key:opt1,opt2", err=True)
+            raise typer.Exit(2)
+        questions[key] = Choice(prompt=key.replace("_", " "), options=options)
+    try:
+        config = load_config(Paths.from_env().config)
+        result = get_classifier(config, live_session=False).classify(state, questions)
+    except (ConfigError, ClassifierUnavailable) as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from err
+    typer.echo(f"provider: {result.provider}")
+    for key, answer in result.answers.items():
+        top, p = answer.top
+        typer.echo(f"{key}: {top} ({p:.2f})  {answer.probs}")

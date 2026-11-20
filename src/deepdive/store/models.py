@@ -112,6 +112,7 @@ class QuestionEdge(BaseModel):
     relation: QuestionEdgeRelation
     confidence: float | None
     classifier: str | None
+    repeat: bool
 
 
 class Source(BaseModel):

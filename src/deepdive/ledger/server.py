@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from pydantic_core import ErrorDetails
 
 from deepdive import clock
+from deepdive.classify import Classifier, get_classifier
 from deepdive.config import Secrets, load_config
 from deepdive.domain_packs import load_pack
 from deepdive.ledger.context import LedgerContext
@@ -24,6 +25,7 @@ from deepdive.ledger.tools.recaps import RecapTools
 from deepdive.ledger.tools.sessions import SessionTools
 from deepdive.ledger.tools.topics import TopicTools
 from deepdive.ledger.tools.web import WebTools
+from deepdive.matcher.matcher import Matcher
 from deepdive.paths import Paths
 from deepdive.store.db import Database
 from deepdive.store.errors import StoreError
@@ -92,11 +94,14 @@ class LedgerServer(MCPServer[None]):
 
 
 def create_server(
-    paths: Paths | None = None, transport: httpx.AsyncBaseTransport | None = None
+    paths: Paths | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+    classifier: Classifier | None = None,
 ) -> LedgerServer:
     """Open (and migrate) the database under `paths` and return the server with all tools.
 
-    `transport` replaces the network for search and fetch (tests pass a mock).
+    `transport` replaces the network for search and fetch and `classifier` the question
+    classifier (tests pass fakes). The live guide uses this server: no headless Claude.
     """
     paths = paths or Paths.from_env()
     paths.ensure_dirs()
@@ -107,13 +112,14 @@ def create_server(
     ctx = LedgerContext(db=db, paths=paths)
     server = LedgerServer(ctx)
     config = load_config(paths.config)
+    matcher = Matcher(ctx.store, classifier or get_classifier(config, live_session=True), config)
     for tools in (
         TopicTools(ctx),
         CharterTools(ctx),
         SessionTools(ctx),
         AgendaTools(ctx),
         ClaimTools(ctx),
-        QuestionTools(ctx),
+        QuestionTools(ctx, matcher),
         RecapTools(ctx),
         WebTools(ctx, config, load_pack(config.domain.pack), Secrets.from_env(), transport),
     ):

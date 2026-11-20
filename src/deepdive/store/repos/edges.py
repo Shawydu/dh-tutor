@@ -18,6 +18,7 @@ class EdgeRepo(Repo[QuestionEdge]):
         *,
         confidence: float | None = None,
         classifier: str | None = None,
+        repeat: bool = False,
     ) -> QuestionEdge:
         """Record how `from_id` relates to `to_id`; re-classifying the same pair replaces the
         edge."""
@@ -25,11 +26,11 @@ class EdgeRepo(Repo[QuestionEdge]):
         questions.require(from_id)
         questions.require(to_id)
         self.conn.execute(
-            "INSERT INTO question_edge (from_id, to_id, relation, confidence, classifier)"
-            " VALUES (?, ?, ?, ?, ?) ON CONFLICT (from_id, to_id) DO UPDATE SET"
+            "INSERT INTO question_edge (from_id, to_id, relation, confidence, classifier, repeat)"
+            " VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (from_id, to_id) DO UPDATE SET"
             " relation = excluded.relation, confidence = excluded.confidence,"
-            " classifier = excluded.classifier",
-            (from_id, to_id, relation, confidence, classifier),
+            " classifier = excluded.classifier, repeat = repeat OR excluded.repeat",
+            (from_id, to_id, relation, confidence, classifier, repeat),
         )
         edge = self._one("WHERE from_id = ? AND to_id = ?", (from_id, to_id))
         assert edge is not None

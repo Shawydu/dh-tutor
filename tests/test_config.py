@@ -77,7 +77,7 @@ def test_invalid_toml_rejected(tmp_path: Path) -> None:
 
 
 def test_secrets_come_from_env_and_never_appear_in_repr_or_str() -> None:
-    secrets = Secrets.from_env({"JEV_API_KEY": KEY, "GITHUB_TOKEN": "ghp_other_secret"})
+    secrets = Secrets.from_env({"TYPESAFE_API_KEY": KEY, "GITHUB_TOKEN": "ghp_other_secret"})
     assert secrets.jev_api_key == KEY
     for text in (repr(secrets), str(secrets), f"{secrets}", repr([secrets])):
         assert KEY not in text
@@ -115,7 +115,7 @@ def test_cli_config_show_prints_effective_config_and_masks_secrets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("DEEPDIVE_HOME", str(tmp_path))
-    monkeypatch.setenv("JEV_API_KEY", KEY)
+    monkeypatch.setenv("TYPESAFE_API_KEY", KEY)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     (tmp_path / "config.toml").write_text("[matcher]\ncandidates = 3\n", "utf-8")
     result = runner.invoke(app, ["config", "show"])

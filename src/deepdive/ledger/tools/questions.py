@@ -1,13 +1,19 @@
 from typing import Any
 
+from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Id, Summary, Text
 from deepdive.ledger.tools._common import Tools
-from deepdive.store.enums import QuestionAsker, QuestionStatus
+from deepdive.matcher.matcher import Matcher, clean_text
+from deepdive.store.enums import QuestionAsker, QuestionEdgeRelation, QuestionStatus
 from deepdive.store.errors import QuestionNotFoundError
 
 
 class QuestionTools(Tools):
+    def __init__(self, ctx: LedgerContext, matcher: Matcher) -> None:
+        super().__init__(ctx)
+        self.matcher = matcher
+
     async def question_get(self, question_id: Id) -> dict[str, Any]:
         """One question: asker, text, status and answer summary."""
         question = self.ctx.store.questions.get(question_id)
@@ -21,9 +27,45 @@ class QuestionTools(Tools):
         """Store a question as asked (open). No matching: the clean text is the trimmed text."""
         if self.ctx.store.sessions.require(session_id).topic_id != topic_id:
             raise InvalidInputError("topic_id must be the session's topic")
-        clean = " ".join(text.split())
+        clean = clean_text(text)
         return self.ctx.store.questions.add(
             topic_id, asker, text, clean, session_id=session_id
+        ).model_dump(mode="json")
+
+    async def question_submit(
+        self, session_id: Id, topic_id: Id, text: Text, asker: QuestionAsker
+    ) -> dict[str, Any]:
+        """Match a new question against past ones and store it; returns guidance for the guide.
+
+        kind is matched, duplicate (a student repeat: drop it, nothing stored) or not_a_question
+        (nothing stored). With needs_judgement, classify the related candidates yourself and
+        record each with question_link.
+        """
+        if self.ctx.store.sessions.require(session_id).topic_id != topic_id:
+            raise InvalidInputError("topic_id must be the session's topic")
+        if not text.strip():
+            raise InvalidInputError("text must not be blank")
+        result = self.matcher.match(text, topic_id, asker, session_id)
+        return {**result.model_dump(mode="json"), "context": result.render_context()}
+
+    async def question_link(
+        self, session_id: Id, from_id: Id, to_id: Id, relation: QuestionEdgeRelation
+    ) -> dict[str, Any]:
+        """Record your own judgement of how question from_id relates to the earlier to_id."""
+        topic_id = self.ctx.store.sessions.require(session_id).topic_id
+        if from_id == to_id:
+            raise InvalidInputError("a question cannot relate to itself")
+        found = [self.ctx.store.questions.get(i) for i in (from_id, to_id)]
+        for question_id, question in zip((from_id, to_id), found, strict=True):
+            if question is None:
+                raise QuestionNotFoundError(question_id)
+        origin, target = found
+        assert origin is not None and target is not None
+        if {origin.topic_id, target.topic_id} != {topic_id}:
+            raise InvalidInputError("both questions must belong to the session's topic")
+        repeat = relation == QuestionEdgeRelation.SAME and origin.asker == QuestionAsker.USER
+        return self.ctx.store.edges.add(
+            from_id, to_id, relation, classifier="guide", repeat=repeat
         ).model_dump(mode="json")
 
     async def question_park(self, session_id: Id, question_id: Id) -> dict[str, Any]:
