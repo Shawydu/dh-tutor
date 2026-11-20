@@ -1,5 +1,6 @@
 import sqlite3
 from collections.abc import Callable
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
@@ -80,3 +81,18 @@ def test_seeded_relations(store: Store, seed_topics: Seed) -> None:
     assert by_other[(q["free_threaded"], q["gil"])] == "clashes"
     cross = store.edges.list_for_question(q["commit_concurrent"])
     assert {e.to_id for e in cross if e.relation == "aspect"} == {q["locks_needed"]}
+
+
+@pytest.mark.parametrize(
+    ("relation", "restarts"),
+    [(QuestionEdgeRelation.ASPECT, False), (QuestionEdgeRelation.SAME, True)],
+)
+def test_re_adding_an_edge_restarts_created_at_only_when_the_relation_changes(
+    store: Store, relation: QuestionEdgeRelation, restarts: bool
+) -> None:
+    """The edge keeps its first created_at unless the relation changed."""
+    a, b = _two(store)
+    first, later = datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 5, tzinfo=UTC)
+    store.edges.add(a, b, QuestionEdgeRelation.ASPECT, at=first)
+    edge = store.edges.add(a, b, relation, at=later)
+    assert edge.created_at == (later if restarts else first)

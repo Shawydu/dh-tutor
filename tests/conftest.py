@@ -107,5 +107,6 @@ def seed_topics(store: Store) -> Seed:
         seed.questions["commit_concurrent"],
         seed.questions["locks_needed"],
         QuestionEdgeRelation.ASPECT,
+        at=datetime(2026, 1, 1, 6, tzinfo=UTC),
     )
     return seed

@@ -21,7 +21,7 @@ from deepdive.store.ids import new_id
 
 TOOLS = {
     "topic_create", "topic_get", "topic_list", "topic_pin", "map_get",
-    "topic_overview", "resume_brief", "topic_recap", "recap_save",
+    "topic_overview", "resume_brief", "topic_recap", "recap_save", "digest_get",
     "charter_write", "charter_get",
     "session_start", "session_bookmark", "session_end", "session_attach",
     "agenda_set", "agenda_next", "agenda_done",
@@ -653,6 +653,7 @@ def test_question_submit_matches_and_links(tmp_path: Path) -> None:
     assert again["related"][0]["id"] == first["question_id"]
     assert "repeat" in again["context"] or "repeated" in again["context"]
     assert ledger.count("question_edge") == 1
+    assert ledger.count("question_edge WHERE created_at IS NOT NULL") == 1  # the matcher timed it
     dup = ledger.call(
         "question_submit", session_id=sid, topic_id=tid, asker="curious", text="the GIL, again?"
     )
@@ -663,6 +664,7 @@ def test_question_submit_matches_and_links(tmp_path: Path) -> None:
         to_id=first["question_id"], relation="builds_on",
     )  # fmt: skip
     assert (link["relation"], link["classifier"]) == ("builds_on", "guide")
+    assert ledger.count("question_edge WHERE created_at IS NOT NULL") == 1  # question_link too
     same = first["question_id"]
     bad = ledger.call("question_link", session_id=sid, from_id=same, to_id=same, relation="same")
     assert bad["error"] == "invalid_input"

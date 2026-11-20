@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from deepdive import clock
 from deepdive.classify import Answer, Choice, Classifier, ClassifyResult, YesNo
 from deepdive.config import Config
 from deepdive.matcher.candidates import CandidateFinder
@@ -183,6 +184,7 @@ class Matcher:
                     confidence=confidence,
                     classifier=result.provider,
                     repeat=repeat and rel == Rel.SAME,
+                    at=clock.now(),
                 )
         return MatchResult(
             kind="matched",

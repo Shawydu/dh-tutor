@@ -55,16 +55,26 @@ class TopicTools(Tools):
             shown.append({"n": str(n), **t.model_dump(mode="json"), "children": kids})
         return {"topics": shown, "page": page, "pages": pages, "total": len(rows)}
 
-    async def resume_brief(self, topic_id: Id) -> dict[str, Any]:
+    async def resume_brief(self, topic_id: Id, item: Id | None = None) -> dict[str, Any]:
         """To resume a topic, in the order to present it: where_we_left_off, recap_checks (empty
-        until v2), new_findings (empty until v1), next_agenda_item. Call before session_start."""
+        until v2), new_findings (the topic's unread discoveries), next_agenda_item. Pass `item`,
+        a discovery id from the digest, to open it: it is marked read and listed first. Call
+        before session_start."""
         self.ctx.store.topics.require(topic_id)
+        found = self.ctx.store.discoveries
+        unread = found.list_unread(topic_id)
+        if item:
+            opened = found.get(item)
+            if opened is None or opened.topic_id != topic_id:
+                raise InvalidInputError("item is not a discovery of this topic")
+            found.mark_read(item, self.ctx.now())
+            unread = [opened, *(d for d in unread if d.id != item)]
         last = self.ctx.store.sessions.latest(topic_id, recorded=True)
         mark = last.bookmark if last else None
         items = self.ctx.store.agenda.list_items(topic_id)
-        item = next((i for i in items if mark and i.id == mark.agenda_item_id), None)
-        if item is None or item.status != AgendaItemStatus.OPEN:
-            item = self.ctx.store.agenda.next_open(topic_id)
+        agenda = next((i for i in items if mark and i.id == mark.agenda_item_id), None)
+        if agenda is None or agenda.status != AgendaItemStatus.OPEN:
+            agenda = self.ctx.store.agenda.next_open(topic_id)
         return {
             "where_we_left_off": {
                 "last_session_at": last.started_at.isoformat() if last else None,
@@ -72,8 +82,8 @@ class TopicTools(Tools):
                 "bookmark_note": mark.note if mark else None,
             },
             "recap_checks": [],
-            "new_findings": [],
-            "next_agenda_item": item.model_dump(mode="json") if item else None,
+            "new_findings": [found.finding(d).model_dump(mode="json") for d in unread],
+            "next_agenda_item": agenda.model_dump(mode="json") if agenda else None,
         }
 
     async def topic_pin(self, topic_id: Id, pinned: bool) -> dict[str, Any]:

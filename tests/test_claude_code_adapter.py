@@ -47,7 +47,7 @@ def test_init_writes_the_locked_down_workspace(tmp_path: Path) -> None:
     assert "tools: mcp__deepdive__claim_list, mcp__deepdive__evidence_list" in skeptic
     assert "disallowedTools: WebSearch, WebFetch" in skeptic
     assert (tmp_path / ".claude/agents/poc-builder.md").exists()
-    for skill in ("dive", "topics", "resume", "parked", "sumup"):
+    for skill in ("dive", "topics", "resume", "parked", "sumup", "digest"):
         assert (tmp_path / f".claude/skills/{skill}/SKILL.md").exists()
     assert "$ARGUMENTS" in (tmp_path / ".claude/skills/dive/SKILL.md").read_text()
     assert (tmp_path / MARKER).exists()

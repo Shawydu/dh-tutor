@@ -1,5 +1,6 @@
 import sqlite3
 import sys
+from datetime import date
 from importlib import metadata
 from pathlib import Path
 from typing import Annotated
@@ -24,6 +25,8 @@ classify_app = typer.Typer(no_args_is_help=True, help="Try the classifier by han
 app.add_typer(classify_app, name="classify")
 probe_app = typer.Typer(no_args_is_help=True, help="The overnight probe.")
 app.add_typer(probe_app, name="probe")
+digest_app = typer.Typer(no_args_is_help=True, help="The morning digest.")
+app.add_typer(digest_app, name="digest")
 
 
 @app.callback()
@@ -247,3 +250,28 @@ def probe_run() -> None:
         typer.echo(f"  {line}")
     if outcome.run.status == "failed":
         raise typer.Exit(1)
+
+
+@digest_app.command("build")
+def digest_build(
+    day: Annotated[
+        str | None, typer.Option("--date", help="YYYY-MM-DD; default today (UTC).")
+    ] = None,
+) -> None:
+    """Write the digest file for a day and print its path."""
+    from deepdive import clock
+    from deepdive.digest.build import DigestBuilder
+    from deepdive.store.repos import Store
+
+    paths = Paths.from_env()
+    if not paths.db.exists():
+        typer.echo(f"no database at {paths.db}; run `deepdive db migrate`", err=True)
+        raise typer.Exit(1)
+    try:
+        config = load_config(paths.config)
+        when = date.fromisoformat(day) if day else clock.now().date()
+    except (ConfigError, ValueError) as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1) from err
+    with Database(paths.db) as db:
+        typer.echo(DigestBuilder(Store(db), config.digest.folder(paths.digests)).write(when))

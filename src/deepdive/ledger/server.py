@@ -20,6 +20,7 @@ from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.tools.agenda import AgendaTools
 from deepdive.ledger.tools.charters import CharterTools
 from deepdive.ledger.tools.claims import ClaimTools
+from deepdive.ledger.tools.digest import DigestTools
 from deepdive.ledger.tools.discoveries import DiscoveryTools
 from deepdive.ledger.tools.questions import QuestionTools
 from deepdive.ledger.tools.recaps import RecapTools
@@ -135,6 +136,7 @@ def create_server(
         ClaimTools(ctx),
         QuestionTools(ctx, matcher),
         RecapTools(ctx),
+        DigestTools(ctx, config),
         web,
     ):
         tools.register(server)

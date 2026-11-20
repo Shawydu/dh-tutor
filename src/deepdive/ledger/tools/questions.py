@@ -65,7 +65,7 @@ class QuestionTools(Tools):
             raise InvalidInputError("both questions must belong to the session's topic")
         repeat = relation == QuestionEdgeRelation.SAME and origin.asker == QuestionAsker.USER
         return self.ctx.store.edges.add(
-            from_id, to_id, relation, classifier="guide", repeat=repeat
+            from_id, to_id, relation, classifier="guide", repeat=repeat, at=self.ctx.now()
         ).model_dump(mode="json")
 
     async def question_park(self, session_id: Id, question_id: Id) -> dict[str, Any]:

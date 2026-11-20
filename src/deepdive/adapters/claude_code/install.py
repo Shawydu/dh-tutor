@@ -26,8 +26,9 @@ PICK = (
     "pick; otherwise show the matches numbered and ask which."
 )
 RESUME = (
-    "Call `resume_brief` with its id, then `session_start`, then present the brief as the guide's "
-    "'Resuming' section says."
+    "If $ARGUMENTS ends with `--item <id>`, drop that part before picking and pass the id as "
+    "`item` to `resume_brief`. Call `resume_brief` with its id, then `session_start`, then present "
+    "the brief as the guide's 'Resuming' section says."
 )
 
 SKILLS = {
@@ -54,6 +55,14 @@ SKILLS = {
         "Resume a topic where you left off",
         "[topic or number]",
         f"Resume the topic: $ARGUMENTS\n\n{PICK} {RESUME}",
+    ),
+    "digest": (
+        "Show today's morning digest",
+        "[YYYY-MM-DD]",
+        "Call `digest_get` (with `date` = $ARGUMENTS when given) and show the markdown. On "
+        "`not_found` say no digest was built for that day and that `deepdive digest build` makes "
+        "one. Then offer to resume any item: each item's resume command is "
+        "`/resume <topic> --item <discovery id>`.",
     ),
     "sumup": (
         "Sum up a topic as a retrospective",

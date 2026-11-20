@@ -123,6 +123,7 @@ class QuestionEdge(BaseModel):
     confidence: float | None
     classifier: str | None
     repeat: bool
+    created_at: AwareDatetime | None  # NULL for edges written before migration 0007
 
 
 class Source(BaseModel):
@@ -187,3 +188,16 @@ class Discovery(BaseModel):
     relevance: float
     summary: str
     read_at: AwareDatetime | None
+
+
+class Finding(BaseModel):
+    """A discovery with the words a reader needs: what it targets and where it came from."""
+
+    id: UUID
+    topic_id: UUID
+    effect: DiscoveryEffect
+    target_type: DiscoveryTargetType
+    target_text: str
+    summary: str
+    relevance: float
+    source_url: str  # the source's url, else its doi link

@@ -108,7 +108,8 @@ empty one silently:
 
 1. `where_we_left_off`: three lines at most from `summary` and `bookmark_note`.
 2. `recap_checks`: ask each due check.
-3. `new_findings`: list them.
+3. `new_findings`: list them. When resumed with `--item`, that finding is the reason the user
+   came: lead with it and discuss it before the agenda.
 4. `next_agenda_item`: say it is next and carry on with section 4 from there. Null means the
    agenda is done: go to section 6.
 

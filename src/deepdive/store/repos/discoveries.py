@@ -1,9 +1,10 @@
+from datetime import datetime
 from uuid import UUID
 
 from deepdive.store.enums import DiscoveryEffect, DiscoveryTargetType
 from deepdive.store.errors import DuplicateSourceError, InvalidTargetError
 from deepdive.store.ids import new_id
-from deepdive.store.models import Claim, Discovery, Question
+from deepdive.store.models import Claim, Discovery, Finding, Question
 from deepdive.store.repos._common import Repo
 from deepdive.store.repos.claims import ClaimRepo
 from deepdive.store.repos.probe_runs import ProbeRunRepo
@@ -68,3 +69,45 @@ class DiscoveryRepo(Repo[Discovery]):
 
     def list_for_topic(self, topic_id: UUID) -> list[Discovery]:
         return self._many("WHERE topic_id = ? ORDER BY id", (topic_id,))
+
+    def get(self, discovery_id: UUID) -> Discovery | None:
+        return self._one("WHERE id = ?", (discovery_id,))
+
+    def list_unread(
+        self, topic_id: UUID | None = None, since: datetime | None = None
+    ) -> list[Discovery]:
+        """Discoveries never opened, best first; with `since`, only those whose probe run started
+        at or after it (a discovery has no time of its own)."""
+        where = ""
+        params: list[object] = []
+        if topic_id:
+            where, params = where + "AND topic_id = ? ", [*params, topic_id]
+        if since:
+            where, params = where + "AND r.started_at >= ? ", [*params, since]
+        return self._many(
+            "JOIN probe_run r ON r.id = discovery.probe_run_id WHERE read_at IS NULL "
+            f"{where}ORDER BY relevance DESC, discovery.id",
+            tuple(params),
+        )
+
+    def mark_read(self, discovery_id: UUID, at: datetime) -> None:
+        self.conn.execute(
+            "UPDATE discovery SET read_at = COALESCE(read_at, ?) WHERE id = ?", (at, discovery_id)
+        )
+
+    def finding(self, d: Discovery) -> Finding:
+        """`d` with its target's text and its source's link."""
+        target = (
+            QuestionRepo(self.db).get(d.target_id)
+            if d.target_type == DiscoveryTargetType.QUESTION
+            else ClaimRepo(self.db).get(d.target_id)
+        )
+        source = SourceRepo(self.db).require(d.source_id)
+        assert target is not None  # DiscoveryRepo.check ran on add
+        return Finding(
+            **d.model_dump(
+                include={"id", "topic_id", "effect", "target_type", "summary", "relevance"}
+            ),
+            target_text=target.clean_text if isinstance(target, Question) else target.text,
+            source_url=source.url or f"https://doi.org/{source.doi}",
+        )

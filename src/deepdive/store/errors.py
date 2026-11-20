@@ -90,3 +90,9 @@ class InvalidTargetError(StoreError):
     """A discovery's target must be an existing question or claim of the same topic."""
 
     code = "invalid_target"
+
+
+class DigestNotFoundError(StoreError):
+    """No digest file was built for the day."""
+
+    code = "not_found"

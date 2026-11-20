@@ -47,7 +47,10 @@ class ProbeConfig(_Section):
 
 class DigestConfig(_Section):
     time: str = Field(default="07:00", pattern=_HHMM)
-    path: str = "~/.deepdive/digests/"
+    path: str | None = None  # unset: Paths.digests, so it follows DEEPDIVE_HOME
+
+    def folder(self, default: Path) -> Path:
+        return default if self.path is None else Path(self.path).expanduser()
 
 
 class DomainConfig(_Section):
@@ -55,7 +58,7 @@ class DomainConfig(_Section):
 
 
 class PocConfig(_Section):
-    workspace: str = "~/.deepdive/poc/"
+    workspace: str | None = None  # unset: Paths.poc, so it follows DEEPDIVE_HOME
     sandbox: Literal["devcontainer"] = "devcontainer"  # Docker Compose under a devcontainer
 
 
@@ -78,7 +81,7 @@ class Config(_Section):
         out: list[str] = []
         for name, values in self.model_dump().items():
             out.append(f"[{name}]")
-            out.extend(f"{key} = {json.dumps(value)}" for key, value in values.items())
+            out.extend(f"{k} = {json.dumps(v)}" for k, v in values.items() if v is not None)
             out.append("")
         return "\n".join(out)
 
@@ -153,13 +156,13 @@ fetches_per_topic = 20
 
 [digest]
 time = "07:00"              # HH:MM, 24-hour
-path = "~/.deepdive/digests/"
+# path = "~/.deepdive/digests/"   # default: <DEEPDIVE_HOME>/digests
 
 [domain]
 pack = "software-engineering"
 
 [poc]
-workspace = "~/.deepdive/poc/"
+# workspace = "~/.deepdive/poc/"  # default: <DEEPDIVE_HOME>/poc
 sandbox = "devcontainer"    # Docker Compose under a devcontainer
 
 [matcher]
