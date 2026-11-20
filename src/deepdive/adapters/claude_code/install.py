@@ -10,6 +10,7 @@ Formats checked against the Claude Code docs and the installed CLI (2.1.311), No
 """
 
 import json
+import shlex
 from importlib import resources
 from pathlib import Path
 
@@ -106,14 +107,25 @@ class Workspace:
     def render(self) -> dict[str, str]:
         """Every generated file, keyed by its path relative to the workspace."""
         files: dict[str, str] = {}
-        server = {
-            "command": "uv",
-            "args": ["run", "--project", str(self.repo), "deepdive", "mcp", "serve"],
-        }
+        run = ["uv", "run", "--project", str(self.repo), "deepdive"]  # the one deepdive everywhere
+        server = {"command": "uv", "args": [*run[1:], "mcp", "serve"]}
         files[".mcp.json"] = _json({"mcpServers": {"deepdive": server}})
-        # Hook entries arrive with the hook commands (V0-10, v1).
+
+        def hook(sub: str, **extra: object) -> dict[str, object]:
+            return {"type": "command", "command": shlex.join([*run, "hook", sub]), **extra}
+
         files[".claude/settings.json"] = _json(
-            {"permissions": {"allow": ["mcp__deepdive__*"], "deny": LOCKED}}
+            {
+                "permissions": {"allow": ["mcp__deepdive__*"], "deny": LOCKED},
+                "hooks": {
+                    # Claude Code's limit sits above the hook's own 8 s cut-off
+                    "UserPromptSubmit": [{"hooks": [hook("user-prompt", timeout=10)]}],
+                    # /clear and /resume start a new Claude session id the guide must re-attach
+                    "SessionStart": [
+                        {"matcher": "startup|resume|clear", "hooks": [hook("session-start")]}
+                    ],
+                },
+            }
         )
         files["CLAUDE.md"] = f"{_persona('_shared')[1]}\n\n{_persona('guide')[1]}\n"
         for pid in ("curious", "skeptic", "poc_builder"):

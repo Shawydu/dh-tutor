@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 from importlib import metadata
 from pathlib import Path
 from typing import Annotated
@@ -16,6 +17,8 @@ db_app = typer.Typer(no_args_is_help=True, help="Create and inspect the SQLite d
 app.add_typer(db_app, name="db")
 mcp_app = typer.Typer(no_args_is_help=True, help="Run the ledger MCP server.")
 app.add_typer(mcp_app, name="mcp")
+hook_app = typer.Typer(no_args_is_help=True, help="Agent-tool hooks; they read JSON on stdin.")
+app.add_typer(hook_app, name="hook")
 classify_app = typer.Typer(no_args_is_help=True, help="Try the classifier by hand.")
 app.add_typer(classify_app, name="classify")
 
@@ -31,6 +34,26 @@ def mcp_serve() -> None:
     from deepdive.ledger.server import create_server  # keeps `deepdive version` from loading mcp
 
     create_server().run("stdio")
+
+
+@hook_app.command("user-prompt")
+def hook_user_prompt() -> None:
+    """UserPromptSubmit: match the typed question and print context for Claude. Never fails."""
+    from deepdive.adapters.claude_code.hooks import Hooks
+
+    out = Hooks(Paths.from_env()).user_prompt(sys.stdin.read())
+    if out:
+        typer.echo(out)
+
+
+@hook_app.command("session-start")
+def hook_session_start() -> None:
+    """SessionStart: print the topic brief and the agent_session_id line. Never fails."""
+    from deepdive.adapters.claude_code.hooks import Hooks
+
+    out = Hooks(Paths.from_env()).session_start(sys.stdin.read())
+    if out:
+        typer.echo(out)
 
 
 @app.command("init")

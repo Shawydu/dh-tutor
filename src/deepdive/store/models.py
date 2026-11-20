@@ -86,6 +86,12 @@ class Session(BaseModel):
     _decode = field_validator("bookmark", mode="before")(_from_json)
 
 
+class AgentSession(BaseModel):
+    agent_session_id: UUID
+    session_id: UUID
+    attached_at: AwareDatetime
+
+
 class AgendaItem(BaseModel):
     id: UUID
     topic_id: UUID

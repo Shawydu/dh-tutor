@@ -44,6 +44,7 @@ DESIGN_TABLES = {
     "knowledge_evidence",
     "poc_project",
     "frontier",  # 0002
+    "agent_session",  # 0005
 }
 # every column that holds a closed set of values, and the lookup table it references
 ENUM_COLUMNS = [
@@ -126,6 +127,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             "0002_frontier",
             "0003_activate_chartered_topics",
             "0004_edge_repeat",
+            "0005_agent_session",
         ]
         assert db.migrate() == []
         assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
@@ -133,6 +135,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             (2, "0002_frontier"),
             (3, "0003_activate_chartered_topics"),
             (4, "0004_edge_repeat"),
+            (5, "0005_agent_session"),
         ]
 
 

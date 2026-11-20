@@ -23,7 +23,7 @@ TOOLS = {
     "topic_create", "topic_get", "topic_list", "topic_pin", "map_get",
     "topic_overview", "resume_brief", "topic_recap", "recap_save",
     "charter_write", "charter_get",
-    "session_start", "session_bookmark", "session_end",
+    "session_start", "session_bookmark", "session_end", "session_attach",
     "agenda_set", "agenda_next", "agenda_done",
     "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
     "question_get", "question_answer", "parked_list",
@@ -692,3 +692,39 @@ def test_question_submit_and_link_validation(tmp_path: Path) -> None:
         "question_link", session_id=sid, from_id=a["id"], to_id=b["id"], relation="same"
     )
     assert ok["repeat"] is True
+
+
+def test_session_attach_links_and_reattaches(ledger: Ledger) -> None:
+    """session_attach stores the link; attaching the same agent id again moves it."""
+    _, first = _session(ledger)
+    _, second = _session(ledger)
+    agent = "11111111-2222-4333-8444-555555555555"
+    got = ledger.call("session_attach", session_id=first, agent_session_id=agent)
+    assert (got["agent_session_id"], got["session_id"]) == (agent, first)
+    ledger.call("session_attach", session_id=second, agent_session_id=agent)
+    assert ledger.count("agent_session") == 1
+    row = ledger.call("session_attach", session_id=second, agent_session_id=agent)
+    assert row["session_id"] == second
+
+
+@pytest.mark.parametrize("case", ["unknown", "ended", "bad-agent-id"])
+def test_session_attach_refuses(ledger: Ledger, case: str) -> None:
+    """An unknown or ended engine session, or a non-UUID agent id, is an ordinary error result."""
+    _, sid = _session(ledger)
+    agent = "11111111-2222-4333-8444-555555555555"
+    if case == "ended":
+        ledger.call("session_end", session_id=sid, summary="s")
+    got = ledger.call(
+        "session_attach",
+        session_id=MISSING if case == "unknown" else sid,
+        agent_session_id="nope" if case == "bad-agent-id" else agent,
+    )
+    assert (
+        got["error"]
+        == {
+            "unknown": "session_not_found",
+            "ended": "invalid_input",
+            "bad-agent-id": "invalid_input",
+        }[case]
+    )
+    assert ledger.count("agent_session") == 0

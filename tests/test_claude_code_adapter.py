@@ -28,6 +28,18 @@ def test_init_writes_the_locked_down_workspace(tmp_path: Path) -> None:
     assert {"WebSearch", "WebFetch", "Bash", "Edit", "Write", "Read", "Glob", "Grep"} <= set(
         settings["permissions"]["deny"]
     )
+    run = f"uv run --project {REPO} deepdive hook"
+    assert settings["hooks"] == {
+        "UserPromptSubmit": [
+            {"hooks": [{"type": "command", "command": f"{run} user-prompt", "timeout": 10}]}
+        ],
+        "SessionStart": [
+            {
+                "matcher": "startup|resume|clear",
+                "hooks": [{"type": "command", "command": f"{run} session-start"}],
+            }
+        ],
+    }
     claude_md = (tmp_path / "CLAUDE.md").read_text()
     assert "# Shared rules" in claude_md and "# Guide" in claude_md and "---" not in claude_md[:4]
     skeptic = (tmp_path / ".claude/agents/skeptic-student.md").read_text()

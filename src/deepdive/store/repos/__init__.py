@@ -1,5 +1,6 @@
 from deepdive.store.db import Database
 from deepdive.store.repos.agenda import AgendaRepo
+from deepdive.store.repos.agent_sessions import AgentSessionRepo
 from deepdive.store.repos.charters import CharterRepo
 from deepdive.store.repos.claims import ClaimRepo
 from deepdive.store.repos.edges import EdgeRepo
@@ -20,6 +21,7 @@ class Store:
         self.charters = CharterRepo(db)
         self.sessions = SessionRepo(db)
         self.agenda = AgendaRepo(db)
+        self.agent_sessions = AgentSessionRepo(db)
         self.questions = QuestionRepo(db)
         self.edges = EdgeRepo(db)
         self.sources = SourceRepo(db)
