@@ -45,7 +45,7 @@ SQLite has no UUID, timestamp or enum types. The schema declares them by name, e
 - A task is done only when every acceptance check passes and `tasks/README.md` is updated.
 - If a task is unclear or wrong, stop and say so. Propose an edit to the task file rather than guessing.
 - Don't build ahead. Stubs for later tasks are fine only where a task says so.
-- Don't commit. Leave changes staged for the user to review, and suggest a commit message.
+- Commit once per completed step (task or refactor step, after the review loop passes), staging only that step's files. Never push; the user pushes.
 
 ## Testing scope
 
