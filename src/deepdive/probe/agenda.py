@@ -4,6 +4,7 @@ from uuid import UUID
 
 from deepdive.config import ProbeConfig
 from deepdive.store.enums import (
+    AgendaItemStatus,
     QuestionAsker,
     QuestionEdgeRelation,
     QuestionStatus,
@@ -16,6 +17,11 @@ KINDS = ("clash", "agenda", "frontier", "challenge", "open")
 _WORD = re.compile(r"[^\W_]{4,}")
 MAX_QUERY = 120
 _TERM_SPLIT = re.compile(r"[:,;]")
+# a facet the user does by hand, which a web search cannot research
+# shortcut: keyword guess, upgrade when agenda items get a kind column
+_HANDS_ON = re.compile(
+    r"\b(hands-on|experiment|exercise|try|build|implement|lab|poc|practice)\b", re.I
+)
 
 
 @dataclass(frozen=True)
@@ -52,7 +58,14 @@ class AgendaBuilder:
         # a re-asked question is stored again with a `same` edge; research only the earliest
         questions = [q for q in questions if not self._repeat_of_earlier(q)]
         frontier_ids = {q.id for q in frontier}
-        item = self.store.agenda.next_open(topic_id)
+        item = next(
+            (
+                i
+                for i in self.store.agenda.list_items(topic_id)
+                if i.status == AgendaItemStatus.OPEN and not _HANDS_ON.search(i.facet)
+            ),
+            None,
+        )
         facet_words = set(_WORD.findall(item.facet.casefold())) if item else set()
         charter = self.store.charters.get_latest(topic_id)
         keywords = charter.in_scope if charter else []

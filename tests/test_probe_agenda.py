@@ -93,6 +93,14 @@ def test_only_the_next_facet_is_on_the_agenda(store: Store) -> None:
     assert [e.agenda_item_id for e in entries] == [items[0].id]
 
 
+def test_hands_on_facets_are_skipped(store: Store) -> None:
+    """A facet the user does by hand is passed over for the next researchable one."""
+    topic = store.topics.create("Fresh topic").id
+    items = store.agenda.replace_items(topic, ["Hands-on experiment", "Snapshot isolation"])
+    entries = AgendaBuilder(store, ProbeConfig()).build(topic)
+    assert [e.agenda_item_id for e in entries] == [items[1].id]
+
+
 def test_same_linked_questions_get_one_entry(store: Store, prepared: Seed) -> None:
     """A re-asked question (same edge) is researched once: the earliest of the group stays."""
     topic = prepared.topics["python-concurrency"]
