@@ -30,7 +30,7 @@ def test_defaults_when_no_file(tmp_path: Path) -> None:
     assert config.classifier.fallback == "claude"
     assert config.classifier.auto_threshold == 0.9
     assert config.search.apis == ["github", "arxiv", "hn"]
-    assert (config.probe.schedule, config.probe.topic_selection) == ("02:00", "pinned")
+    assert (config.probe.schedule, config.probe.topic_selection) == ("02:00", "active")
     assert (config.probe.max_topics, config.probe.searches_per_topic) == (5, 10)
     assert config.digest.time == "07:00"
     assert config.domain.pack == "software-engineering"

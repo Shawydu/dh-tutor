@@ -54,6 +54,12 @@ def test_selection(
     assert [t.id for t in picked] == [prepared.topics[k] for k in expected]
 
 
+def test_default_selection_is_active_topics(store: Store, prepared: Seed) -> None:
+    """With no config the probe covers topics with a recent session, not only pinned ones."""
+    picked = TopicSelector(store, ProbeConfig()).select(NOW)
+    assert [t.id for t in picked] == [prepared.topics["python-concurrency"]]
+
+
 def test_ranking_on_seeded_data(store: Store, prepared: Seed) -> None:
     """Clash first, then open questions on the current agenda item, then frontier, then oldest."""
     topic, q = prepared.topics["python-concurrency"], prepared.questions
