@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from deepdive.config import Config
+from deepdive.config import Config, Secrets
 from deepdive.paths import Paths
 
 _DEFAULT_PATH = "/usr/bin:/bin"
@@ -38,10 +38,11 @@ class Scheduler:
         agents_dir: Path,
         checkout: Path,
         uv: str,
+        secrets: Secrets,
         launchctl: Launchctl = _launchctl,
     ) -> None:
         self._paths, self._agents_dir, self._launchctl = paths, agents_dir, launchctl
-        self._checkout, self._uv = checkout, uv
+        self._checkout, self._uv, self._secrets = checkout, uv, secrets
         self._domain = f"gui/{os.getuid()}"
         self.jobs = [
             Job("com.deepdive.probe", config.probe.schedule, ["probe", "run"]),
@@ -92,10 +93,21 @@ class Scheduler:
             path.write_bytes(self.render(job))
             if self._launchctl(["bootstrap", self._domain, str(path)]) != 0:
                 raise SchedulerError(f"launchctl bootstrap failed for {path}")
+        warnings = []
+        if self._secrets.jev_api_key is None:
+            warnings.append(
+                f"TYPESAFE_API_KEY not set (env or {self._paths.secrets}); "
+                "the probe falls back to the slower claude classifier"
+            )
+        if self._secrets.github_token is None:
+            warnings.append(
+                f"GITHUB_TOKEN not set (env or {self._paths.secrets}); "
+                "GitHub search is limited to 10 requests a minute"
+            )
         path_env = os.environ.get("PATH", _DEFAULT_PATH)
         if shutil.which("claude", path=path_env) is None:
-            return ["claude is not on the PATH saved in the plists; the probe will fail"]
-        return []
+            warnings.append("claude is not on the PATH saved in the plists; the probe will fail")
+        return warnings
 
     def remove(self) -> None:
         """Boot both jobs out of launchd, then delete the plists that exist."""

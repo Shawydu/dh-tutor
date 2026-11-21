@@ -112,14 +112,15 @@ def config_show() -> None:
     paths = Paths.from_env()
     try:
         config = load_config(paths.config)
+        secrets = Secrets.from_env()
     except ConfigError as err:
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from err
     source = paths.config if paths.config.exists() else "none found, showing defaults"
     typer.echo(f"# config file: {source}")
     typer.echo(config.to_toml())
-    typer.echo("[secrets]  # from env vars TYPESAFE_API_KEY and GITHUB_TOKEN")
-    for key, value in Secrets.from_env().masked().items():
+    typer.echo("[secrets]  # from env vars TYPESAFE_API_KEY and GITHUB_TOKEN, else secrets.env")
+    for key, value in secrets.masked().items():
         typer.echo(f'{key} = "{value}"')
 
 
@@ -296,11 +297,12 @@ def _scheduler() -> "Scheduler":
     paths = Paths.from_env()
     try:
         config = load_config(paths.config)
+        secrets = Secrets.from_env()
     except ConfigError as err:
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from err
     agents = Path("~/Library/LaunchAgents").expanduser()
-    return Scheduler(paths, config, agents, Path(__file__).resolve().parents[2], uv)
+    return Scheduler(paths, config, agents, Path(__file__).resolve().parents[2], uv, secrets)
 
 
 @schedule_app.command("install")
@@ -316,10 +318,6 @@ def schedule_install() -> None:
     for warning in warnings:
         typer.echo(f"warning: {warning}", err=True)
     typer.echo("installed; run `deepdive schedule status` to check")
-    typer.echo(
-        "note: jobs don't see shell env; for Jev/GitHub keys at night run "
-        "`launchctl setenv TYPESAFE_API_KEY ...` (and GITHUB_TOKEN), else fallbacks apply"
-    )
 
 
 @schedule_app.command("remove")

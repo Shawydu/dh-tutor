@@ -27,6 +27,10 @@ class Paths:
         return self.root / "config.toml"
 
     @property
+    def secrets(self) -> Path:
+        return self.root / "secrets.env"
+
+    @property
     def digests(self) -> Path:
         return self.root / "digests"
 

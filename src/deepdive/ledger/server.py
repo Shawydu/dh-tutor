@@ -117,7 +117,9 @@ def create_server(
     ctx = LedgerContext(db=db, paths=paths, probe=probe)
     server = LedgerServer(ctx)
     config = load_config(paths.config)
-    web = WebTools(ctx, config, load_pack(config.domain.pack), Secrets.from_env(), transport)
+    web = WebTools(
+        ctx, config, load_pack(config.domain.pack), Secrets.from_env(paths=paths), transport
+    )
     if probe:
         ctx.store.probe_runs.require(probe.probe_run_id)
         ctx.store.topics.require(probe.topic_id)

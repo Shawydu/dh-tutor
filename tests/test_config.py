@@ -76,14 +76,54 @@ def test_invalid_toml_rejected(tmp_path: Path) -> None:
         load_config(write(tmp_path, "[probe\n"))
 
 
-def test_secrets_come_from_env_and_never_appear_in_repr_or_str() -> None:
-    secrets = Secrets.from_env({"TYPESAFE_API_KEY": KEY, "GITHUB_TOKEN": "ghp_other_secret"})
-    assert secrets.jev_api_key == KEY
+def test_secrets_never_appear_in_repr_or_str() -> None:
+    """repr and str of Secrets say a key is set without showing it."""
+    secrets = Secrets(jev_api_key=KEY, github_token="ghp_other_secret")
     for text in (repr(secrets), str(secrets), f"{secrets}", repr([secrets])):
         assert KEY not in text
         assert "ghp_other_secret" not in text
-    assert Secrets.from_env({}) == Secrets()
     assert "(not set)" in repr(Secrets())
+
+
+@pytest.mark.parametrize(
+    ("env", "file", "jev", "github"),
+    [
+        ({"TYPESAFE_API_KEY": KEY}, None, KEY, None),
+        (
+            {},
+            "# c\n\nTYPESAFE_API_KEY=" + KEY + "\nOTHER=x\nGITHUB_TOKEN = ghp_f\n",
+            KEY,
+            "ghp_f",
+        ),
+        ({"GITHUB_TOKEN": "ghp_env"}, "GITHUB_TOKEN=ghp_f\n", None, "ghp_env"),
+        ({}, "OTHER=x\n", None, None),
+    ],
+    ids=["env-only", "file-only", "env-wins", "no-known-keys"],
+)
+def test_secrets_read_env_then_secrets_file(
+    tmp_path: Path,
+    env: dict[str, str],
+    file: str | None,
+    jev: str | None,
+    github: str | None,
+) -> None:
+    """Env vars win over secrets.env; unknown keys, blanks and comments in the file are ignored."""
+    if file is not None:
+        (tmp_path / "secrets.env").write_text(file)
+        (tmp_path / "secrets.env").chmod(0o600)
+    secrets = Secrets.from_env({**env, "DEEPDIVE_HOME": str(tmp_path)})
+    assert (secrets.jev_api_key, secrets.github_token) == (jev, github)
+
+
+def test_secrets_file_open_to_others_is_refused_without_leaking_a_value(tmp_path: Path) -> None:
+    """A 0644 secrets.env raises, naming the path and chmod 600 but no value."""
+    path = tmp_path / "secrets.env"
+    path.write_text(f"TYPESAFE_API_KEY={KEY}\n")
+    path.chmod(0o644)
+    with pytest.raises(ConfigError) as err:
+        Secrets.from_env({"DEEPDIVE_HOME": str(tmp_path)})
+    assert str(path) in str(err.value) and "chmod 600" in str(err.value)
+    assert KEY not in str(err.value)
 
 
 def test_secrets_cannot_be_set_from_the_toml(tmp_path: Path) -> None:

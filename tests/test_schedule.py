@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from deepdive.config import Config
+from deepdive.config import Config, Secrets
 from deepdive.paths import Paths
 from deepdive.schedule import Scheduler, SchedulerError
 
@@ -44,10 +44,21 @@ def checkout(tmp_path: Path) -> Path:
     return tmp_path / "dd"
 
 
-def make(tmp_path: Path, checkout: Path, launchctl: FakeLaunchctl) -> Scheduler:
+KEYS = Secrets(jev_api_key="k", github_token="t")
+
+
+def make(
+    tmp_path: Path, checkout: Path, launchctl: FakeLaunchctl, secrets: Secrets = KEYS
+) -> Scheduler:
     config = Config.model_validate({"probe": {"schedule": "02:30"}, "digest": {"time": "07:05"}})
     return Scheduler(
-        Paths(tmp_path / "home"), config, tmp_path / "agents", checkout, "/bin/uv", launchctl
+        Paths(tmp_path / "home"),
+        config,
+        tmp_path / "agents",
+        checkout,
+        "/bin/uv",
+        secrets,
+        launchctl,
     )
 
 
@@ -121,3 +132,22 @@ def test_install_warns_when_claude_is_missing(
     """install returns a warning, not an error, when claude is not on PATH."""
     monkeypatch.setenv("PATH", "/nonexistent")
     assert len(scheduler.install()) == 1
+
+
+@pytest.mark.parametrize(
+    ("secrets", "missing"),
+    [(Secrets(github_token="t"), "TYPESAFE_API_KEY"), (Secrets(jev_api_key="k"), "GITHUB_TOKEN")],
+    ids=["jev", "github"],
+)
+def test_install_warns_on_a_missing_key(
+    tmp_path: Path,
+    checkout: Path,
+    launchctl: FakeLaunchctl,
+    monkeypatch: pytest.MonkeyPatch,
+    secrets: Secrets,
+    missing: str,
+) -> None:
+    """install warns once for each key that is in neither the env nor secrets.env."""
+    monkeypatch.setenv("PATH", os.defpath)
+    warnings = make(tmp_path, checkout, launchctl, secrets).install()
+    assert [w.split()[0] for w in warnings if "not set" in w] == [missing]

@@ -1,7 +1,8 @@
-"""Typed engine settings from config.toml. Secrets come from env vars only, never the file."""
+"""Typed engine settings from config.toml. Secrets: env vars or secrets.env, not the toml."""
 
 import json
 import os
+import stat
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -10,8 +11,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from deepdive.paths import Paths
+
 _HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
 _MASK = "********"
+_SECRET_KEYS = ("TYPESAFE_API_KEY", "GITHUB_TOKEN")
 
 
 class _Section(BaseModel):
@@ -103,19 +107,39 @@ def load_config(path: Path) -> Config:
         raise ConfigError(f"{path}: invalid config\n" + "\n".join(lines)) from err
 
 
+def _read_secrets_file(path: Path) -> dict[str, str]:
+    """KEY=VALUE lines for the two known keys; blanks, `#` lines and other keys are ignored."""
+    if not path.exists():
+        return {}
+    if path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+        raise ConfigError(f"{path} is readable by other users; run `chmod 600 {path}`")
+    out: dict[str, str] = {}
+    for line in path.read_text("utf-8").splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and key.strip() in _SECRET_KEYS:
+            out[key.strip()] = value.strip()
+    return out
+
+
 @dataclass(frozen=True, repr=False)
 class Secrets:
-    """API keys from env vars only. repr and str say whether a key is set, never its value."""
+    """API keys from env vars, else <DEEPDIVE_HOME>/secrets.env (launchd jobs don't inherit the
+    shell env). repr and str say whether a key is set, never its value."""
 
     jev_api_key: str | None = None
     github_token: str | None = None
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> "Secrets":
+    def from_env(
+        cls, env: Mapping[str, str] | None = None, paths: Paths | None = None
+    ) -> "Secrets":
+        """Env vars win over secrets.env. A secrets.env open to group or other is refused."""
         env = os.environ if env is None else env
+        # shortcut: a plain env file; move to the macOS Keychain if it must be stored encrypted
+        file = _read_secrets_file((paths or Paths.from_env(env)).secrets)
         return cls(
-            jev_api_key=env.get("TYPESAFE_API_KEY") or None,
-            github_token=env.get("GITHUB_TOKEN") or None,
+            jev_api_key=env.get("TYPESAFE_API_KEY") or file.get("TYPESAFE_API_KEY") or None,
+            github_token=env.get("GITHUB_TOKEN") or file.get("GITHUB_TOKEN") or None,
         )
 
     def masked(self) -> dict[str, str]:
@@ -130,7 +154,9 @@ class Secrets:
 
 DEFAULT_CONFIG_TOML = """\
 # deepdive config. Every value below is the default; delete or change what you like.
-# API keys are not set here: export TYPESAFE_API_KEY and GITHUB_TOKEN in your environment.
+# API keys are not set here: export TYPESAFE_API_KEY and GITHUB_TOKEN in your environment, or put
+# KEY=VALUE lines in <DEEPDIVE_HOME>/secrets.env (chmod 600; the env wins).
+# Scheduled jobs don't see your shell env, so they need the file.
 
 [classifier]
 provider = "jev"            # jev | claude
