@@ -7,7 +7,7 @@ from deepdive.config import Config, Secrets
 from deepdive.domain_packs import DomainPack
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
-from deepdive.ledger.limits import Id, Limit, Title, Url
+from deepdive.ledger.limits import Id, Keywords, Limit, Query, Url
 from deepdive.ledger.tools._common import Tools
 from deepdive.search.arxiv import Arxiv
 from deepdive.search.base import TIER_KEY, SearchProvider, SearchResult
@@ -69,13 +69,17 @@ class WebTools(Tools):
 
     async def search(
         self,
-        query: Title,
+        query: Query,
+        optional: Keywords | None = None,
         providers: list[str] | None = None,
         since: date | None = None,
         limit: Limit = 10,
         session_id: Id | None = None,
     ) -> dict[str, Any]:
         """Search GitHub, arXiv and Hacker News; each result carries a citable source_id.
+
+        query: 1-4 keywords every result must match (the topic name), never a sentence.
+        optional: a few more keywords that rank results but may be missing.
 
         providers picks from the enabled providers (default all). Each call costs one search
         from the session budget; at zero the answer is {"error": "budget_exhausted"}.
@@ -91,12 +95,12 @@ class WebTools(Tools):
         errors: dict[str, str] = {}
         async with self._client() as http:
             for name in chosen:
-                key = (name, query, str(since), str(limit))
+                key = (name, query, *(optional or ()), str(since), str(limit))
                 hit = self.cache.get(*key)
                 try:
                     if hit is None:
                         found = await self.registry[name].search(
-                            http, query, since=since, limit=limit
+                            http, query, optional=optional or (), since=since, limit=limit
                         )
                         self.cache.put([r.model_dump(mode="json") for r in found], *key)
                     else:

@@ -222,8 +222,7 @@ def probe_plan() -> None:
             typer.echo(f"# {topic.title}")
             for n, item in enumerate(builder.build(topic.id), start=1):
                 typer.echo(f"{n}. [{item.kind}] {item.question}")
-                for query in item.queries:
-                    typer.echo(f"   - {query}")
+                typer.echo(f"   - search: {item.query} | optional: {' '.join(item.keywords)}")
 
 
 @probe_app.command("run")

@@ -1,5 +1,6 @@
 """What every search provider returns and implements."""
 
+from collections.abc import Sequence
 from datetime import date
 from typing import Literal, Protocol
 
@@ -32,6 +33,13 @@ class SearchResult(BaseModel):
 class SearchProvider(Protocol):
     name: str
 
+    # query: words every result must match; optional: words that rank results but may be missing
     async def search(
-        self, client: httpx.AsyncClient, query: str, *, since: date | None, limit: int
+        self,
+        client: httpx.AsyncClient,
+        query: str,
+        *,
+        optional: Sequence[str] = (),
+        since: date | None,
+        limit: int,
     ) -> list[SearchResult]: ...

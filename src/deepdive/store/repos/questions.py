@@ -10,7 +10,7 @@ from deepdive.store.repos.topics import TopicRepo
 
 # Words that match half the registry and tell the ranker nothing. Single letters (such as the "t"
 # of "can't") are dropped separately.
-_STOP_WORDS = frozenset(
+STOP_WORDS = frozenset(
     "a about all also am an and any are as at be been being but by can could did do does doing "
     "for from get got had has have how i if in into is it its just me my no not of on or our "
     "should so than that the their them then there these they this to too up us use was we were "
@@ -21,7 +21,7 @@ _STOP_WORDS = frozenset(
 def _fts_query(text: str) -> str:
     """Turn free text into a safe FTS5 query: quoted word tokens joined with OR; '' if none."""
     tokens = re.findall(r"[^\W_]+", text.casefold())
-    keep = dict.fromkeys(t for t in tokens if len(t) > 1 and t not in _STOP_WORDS)
+    keep = dict.fromkeys(t for t in tokens if len(t) > 1 and t not in STOP_WORDS)
     return " OR ".join(f'"{t}"' for t in keep)
 
 

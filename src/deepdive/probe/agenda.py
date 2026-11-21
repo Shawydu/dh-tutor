@@ -1,4 +1,5 @@
 import re
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -11,12 +12,14 @@ from deepdive.store.enums import (
 )
 from deepdive.store.models import Question
 from deepdive.store.repos import Store
+from deepdive.store.repos.questions import STOP_WORDS
 
 # Lower ranks first. Within a rank, oldest first (ids are time-ordered).
 KINDS = ("clash", "agenda", "frontier", "challenge", "open")
 _WORD = re.compile(r"[^\W_]{4,}")
-MAX_QUERY = 120
-_TERM_SPLIT = re.compile(r"[:,;]")
+_TOKEN = re.compile(r"[^\W_]+")
+QUERY_WORDS = 2  # providers AND these, so only the head of the topic name; the rest ranks
+MAX_KEYWORDS = 6
 # a facet the user does by hand, which a web search cannot research
 # shortcut: keyword guess, upgrade when agenda items get a kind column
 _HANDS_ON = re.compile(
@@ -32,7 +35,8 @@ class AgendaEntry:
     question_id: UUID | None
     kind: str
     question: str
-    queries: list[str]
+    query: str
+    keywords: list[str]
     agenda_item_id: UUID | None = None
 
 
@@ -67,8 +71,9 @@ class AgendaBuilder:
             None,
         )
         facet_words = set(_WORD.findall(item.facet.casefold())) if item else set()
-        charter = self.store.charters.get_latest(topic_id)
-        keywords = charter.in_scope if charter else []
+        title = self.store.topics.require(topic_id).title
+        query = " ".join(search_words(title)[:QUERY_WORDS] or title.split()[:QUERY_WORDS])
+        skip = {w.casefold() for w in query.split()}
 
         def kind(q: Question) -> str:
             if self._clashes(q):
@@ -83,13 +88,24 @@ class AgendaBuilder:
 
         ranked = sorted(((KINDS.index(kind(q)), q.id, q) for q in questions), key=lambda r: r[:2])
         entries = [
-            AgendaEntry(q.id, KINDS[rank], q.clean_text, self._queries(q.clean_text, keywords))
+            AgendaEntry(
+                q.id,
+                KINDS[rank],
+                q.clean_text,
+                query,
+                search_words(f"{q.clean_text} {title}", skip),
+            )
             for rank, _, q in ranked
         ]
         if item:  # one facet per run, after every question: the nightly probe walks them in order
             entries.append(
                 AgendaEntry(
-                    None, "agenda", item.facet, self._queries(item.facet, keywords), item.id
+                    None,
+                    "agenda",
+                    item.facet,
+                    query,
+                    search_words(f"{item.facet} {title}", skip),
+                    item.id,
                 )
             )
         return entries[: self.limit]
@@ -107,22 +123,14 @@ class AgendaBuilder:
         edges = self.store.edges.list_for_question(question.id)
         return any(e.relation == QuestionEdgeRelation.CLASHES for e in edges)
 
-    @staticmethod
-    def _queries(text: str, keywords: list[str]) -> list[str]:
-        """The text as asked (capped), then one variant with up to 3 charter terms it lacks:
-        the plain form keeps recall, the terms narrow the search to the topic's map."""
-        if len(text) > MAX_QUERY:
-            cut = text[: MAX_QUERY + 1]
-            text = (
-                cut[:-1] if cut[-1] == " " else (cut.rsplit(" ", 1)[0] if " " in cut else cut[:-1])
-            )
-        extra: list[str] = []
-        for term in (t.strip() for k in keywords for t in _TERM_SPLIT.split(k)):
-            if (
-                len(term) >= 3
-                and term.casefold() not in text.casefold()
-                and term not in extra
-                and len(f"{text} {' '.join([*extra, term])}") <= MAX_QUERY
-            ):
-                extra.append(term)
-        return [text] + ([f"{text} {' '.join(extra[:3])}"] if extra else [])
+
+def search_words(text: str, skip: AbstractSet[str] = frozenset()) -> list[str]:
+    """Search keywords from free text: no stop words, no repeats, nothing in `skip`
+    (casefolded), at most MAX_KEYWORDS. Two-letter words survive only in capitals (IO, GC)."""
+    seen = {*STOP_WORDS, *skip}
+    out: list[str] = []
+    for w in _TOKEN.findall(text):
+        if (len(w) > 2 or w.isupper()) and w.casefold() not in seen:
+            seen.add(w.casefold())
+            out.append(w)
+    return out[:MAX_KEYWORDS]

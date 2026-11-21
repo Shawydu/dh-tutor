@@ -126,3 +126,63 @@ def test_live_hn_search() -> None:
             return await HackerNews().search(c, "sqlite", since=None, limit=3)
 
     assert asyncio.run(go())
+
+
+@pytest.mark.parametrize(
+    ("provider", "param", "expected"),
+    [
+        (HackerNews(), "query", "python threading race lock"),
+        (HackerNews(), "optionalWords", "race lock"),
+        (Arxiv(), "search_query",
+         "all:python AND all:threading AND (all:race OR all:lock) AND cat:cs.*"),
+        (GitHub(), "q", "python threading race lock"),
+    ],
+    ids=["hn-query", "hn-optional", "arxiv-or-group", "github-and"],
+)  # fmt: skip
+def test_optional_keywords_reach_each_provider_in_its_own_form(
+    provider: GitHub | Arxiv | HackerNews, param: str, expected: str
+) -> None:
+    """Required words must match; optional ones go where each API ranks them without requiring."""
+    seen: list[httpx.Request] = []
+
+    def capture(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return handler(request)
+
+    async def go() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(capture)) as c:
+            await provider.search(
+                c, "python threading", optional=["race", "lock"], since=None, limit=5
+            )
+
+    asyncio.run(go())
+    assert seen[0].url.params[param] == expected
+
+
+def test_optional_keywords_are_part_of_the_cache_key(tmp_path: Path) -> None:
+    """Two searches that differ only in optional keywords both reach the provider."""
+    hits: list[str] = []
+
+    def count(request: httpx.Request) -> httpx.Response:
+        hits.append(request.url.host)
+        return handler(request)
+
+    paths = Paths(tmp_path)
+    web = Ledger(create_server(paths, transport=httpx.MockTransport(count)), paths)
+    for optional in (["race"], ["lock"], ["lock"]):
+        web.call("search", query="python", optional=optional, providers=["hn"])
+    assert hits == ["hn.algolia.com"] * 2
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"query": "how does the python interpreter release the gil during blocking io"},
+        {"query": "python", "optional": [f"w{i}" for i in range(9)]},
+        {"query": "python", "optional": ["x" * 65]},
+    ],
+    ids=["sentence-query", "too-many-keywords", "long-keyword"],
+)
+def test_search_input_is_a_few_keywords(web: Ledger, args: dict[str, object]) -> None:
+    """A sentence as query, or too many / too long optional keywords, is invalid input."""
+    assert web.call("search", **args)["error"] == "invalid_input"

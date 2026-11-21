@@ -1,5 +1,6 @@
 """GitHub REST: repository and issue search, plus releases of one repo."""
 
+from collections.abc import Sequence
 from datetime import date
 from typing import Any
 
@@ -27,9 +28,17 @@ class GitHub:
         return resp.json()
 
     async def search(
-        self, client: httpx.AsyncClient, query: str, *, since: date | None, limit: int
+        self,
+        client: httpx.AsyncClient,
+        query: str,
+        *,
+        optional: Sequence[str] = (),
+        since: date | None,
+        limit: int,
     ) -> list[SearchResult]:
         half = (limit + 1) // 2  # repos and issues share the limit
+        # GitHub requires every word and has no optional ones: take two, colons mean qualifiers
+        query = " ".join([query, *(w.replace(":", " ") for w in optional[:2])])
         when = f" pushed:>={since}" if since else ""
         repos = await self._get(
             client, "/search/repositories", {"q": query + when, "per_page": half}

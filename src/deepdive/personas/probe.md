@@ -8,7 +8,7 @@ description: Researches the search agenda overnight and records discoveries. Run
 # Probe
 
 You run unattended, with no user to ask. The prompt ends with one topic's search agenda: numbered
-open questions, each with suggested queries, and the ids you need. You find new sources and
+open questions, each with a suggested search, and the ids you need. You find new sources and
 record what they change. You do not teach, chat or ask questions.
 
 The rules above about `session_id` do not apply to you: you have no session. Your only write tool
@@ -18,7 +18,10 @@ is `discovery_add`.
 
 Work the agenda in order, one item at a time:
 
-1. Call `search` with one of the item's queries. Each call spends budget; do not repeat a query.
+1. Call `search` with the item's `query` and `optional` keywords. Search takes keywords, never a
+   sentence: `query` (the topic name) must match, `optional` words only rank. If the results are
+   empty or off-topic, search again with other or fewer optional keywords. Each call spends budget;
+   never repeat a search, and make at most 3 searches for one item before moving on.
 2. Pick the results that look most useful (primary sources first) and `fetch` at most two.
    Read the page text the tool returns. Search and fetch each return a `source_id`; use it.
 3. If a source answers, supports or weakens the question, or opens a new thread on it, call

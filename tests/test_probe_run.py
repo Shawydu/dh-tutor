@@ -293,7 +293,7 @@ def test_claude_output_that_is_not_an_envelope_is_a_failure(
     )
     exe.chmod(0o755)
     monkeypatch.setenv("PATH", f"{exe.parent}{os.pathsep}{os.environ['PATH']}")
-    entry = AgendaEntry(world.question, "open", "q", ["x"])
+    entry = AgendaEntry(world.question, "open", "q", "x", [])
     assert ClaudeProbe(world.paths, timeout=30).run(world.run, world.topic, [entry]).ok is ok
 
 

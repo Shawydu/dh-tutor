@@ -2,6 +2,7 @@
 
 import html
 import re
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, time
 
 import httpx
@@ -13,13 +14,22 @@ class HackerNews:
     name = "hn"
 
     async def search(
-        self, client: httpx.AsyncClient, query: str, *, since: date | None, limit: int
+        self,
+        client: httpx.AsyncClient,
+        query: str,
+        *,
+        optional: Sequence[str] = (),
+        since: date | None,
+        limit: int,
     ) -> list[SearchResult]:
+        words = " ".join(optional)
         params: dict[str, str | int] = {
-            "query": query,
+            "query": f"{query} {words}".strip(),
             "tags": "(story,comment)",
             "hitsPerPage": limit,
         }
+        if words:
+            params["optionalWords"] = words  # Algolia ANDs every word otherwise
         if since:
             stamp = int(datetime.combine(since, time(), UTC).timestamp())
             params["numericFilters"] = f"created_at_i>={stamp}"

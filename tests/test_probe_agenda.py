@@ -12,7 +12,7 @@ from deepdive.adapters.claude_code.headless import ClaudeProbe
 from deepdive.cli import app
 from deepdive.config import ProbeConfig
 from deepdive.paths import Paths
-from deepdive.probe.agenda import AgendaBuilder
+from deepdive.probe.agenda import AgendaBuilder, search_words
 from deepdive.probe.select import TopicSelector
 from deepdive.store.enums import QuestionAsker, QuestionEdgeRelation, QuestionStatus
 from deepdive.store.repos import Store
@@ -68,9 +68,8 @@ def test_ranking_on_seeded_data(store: Store, prepared: Seed) -> None:
         (None, "agenda"),  # the open facet itself, after the questions on it
     ]
     assert entries[-1].question == "Real parallelism"
-    first = entries[0]
-    assert first.queries[0] == first.question
-    assert len(first.queries) == 2 and first.queries[1].startswith(first.question)
+    # every entry searches the topic name; its own words only rank
+    assert {e.query for e in entries} == {"Concurrency control"}
 
 
 def test_topic_with_only_agenda_items_gets_entries(store: Store, prepared: Seed) -> None:
@@ -82,7 +81,7 @@ def test_topic_with_only_agenda_items_gets_entries(store: Store, prepared: Seed)
     assert [(e.question_id, e.agenda_item_id, e.kind, e.question) for e in entries] == [
         (None, items[1].id, "agenda", "Second facet")
     ]
-    assert entries[0].queries == ["Second facet"]
+    assert (entries[0].query, entries[0].keywords) == ("Fresh topic", ["Second", "facet"])
 
 
 def test_only_the_next_facet_is_on_the_agenda(store: Store) -> None:
@@ -123,28 +122,22 @@ def test_reask_of_an_answered_question_is_not_researched(store: Store, prepared:
 
 
 @pytest.mark.parametrize(
-    ("text", "keywords", "expected"),
+    ("text", "skip", "expected"),
     [
-        ("Why?", [], ["Why?"]),
+        ("Why?", set(), []),
+        ("How does the GIL limit threads?", set(), ["GIL", "limit", "threads"]),
+        ("Is IO or io faster than threads, threads?", {"threads"}, ["IO", "faster"]),
         (
-            "How does the GIL limit threads?",
-            ["Concurrency vs parallelism: definitions, I/O-bound example", "The GIL: lock"],
-            ["How does the GIL limit threads?",
-             "How does the GIL limit threads? Concurrency vs parallelism definitions"
-             " I/O-bound example"],
+            "one two three four five six seven",
+            set(),
+            ["one", "two", "three", "four", "five", "six"],
         ),
-        ("What is the GIL?", ["The GIL: lock"], ["What is the GIL?", "What is the GIL? lock"]),
-        ("What is it?", ["GIL, C"], ["What is it?", "What is it? GIL"]),  # short all-caps kept
-        ("x " * 100, ["parallelism"], ["x " * 59 + "x"]),  # capped; term no longer fits
-        ("x" * 119 + " yz", [], ["x" * 119]),  # a space at char 121 cuts nothing
     ],
-    ids=["no-keywords", "terms-split", "known-term-skipped", "all-caps", "capped", "cap-at-space"],
-)  # fmt: skip
-def test_query_shape(text: str, keywords: list[str], expected: list[str]) -> None:
-    """Queries are the question plus at most one variant with up to 3 new keywords, <= 120 chars."""
-    queries = AgendaBuilder._queries(text, keywords)
-    assert queries == expected
-    assert all(len(q) <= 120 for q in queries)
+    ids=["only-stop-words", "question", "caps-skip-repeat", "capped"],
+)
+def test_keywords_shape(text: str, skip: set[str], expected: list[str]) -> None:
+    """Keywords drop stop words, repeats and skipped words, keep 2-letter capitals, at most 6."""
+    assert search_words(text, skip) == expected
 
 
 def test_partial_question_with_clash_ranks_first(store: Store, prepared: Seed) -> None:
@@ -180,11 +173,12 @@ def test_probe_plan_output(
     assert result.exit_code == 0, result.output
     q1 = "What happens when two writers commit to an Iceberg table at the same moment?"
     q2 = "Does adding more writer threads or CPU cores make Iceberg commits conflict more often?"
-    kw = "table metadata snapshots catalogs"
     assert result.output == (
         "# Apache Iceberg and what it solves\n"
-        f"1. [challenge] {q1}\n   - {q1}\n   - {q1} {kw}\n"
-        f"2. [challenge] {q2}\n   - {q2}\n   - {q2} {kw}\n"
+        f"1. [challenge] {q1}\n"
+        "   - search: Apache Iceberg | optional: happens two writers commit table same\n"
+        f"2. [challenge] {q2}\n"
+        "   - search: Apache Iceberg | optional: adding more writer threads CPU cores\n"
     )
 
 

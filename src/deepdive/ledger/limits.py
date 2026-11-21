@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import Field
 
+QUERY_MAX = 60  # a search's required words: a few keywords, never a sentence
 TITLE_MAX = 200  # topic titles, agenda facets, core questions and other one-line items
 TEXT_MAX = 1000  # claim text, charter done_when
 SUMMARY_MAX = 2000  # session summaries, answer summaries, evidence excerpt summaries
@@ -22,6 +23,7 @@ Limit = Annotated[int, Field(ge=1, le=25)]  # results per search
 Id = UUID  # JSON schema format uuid; anything else is refused before the tool runs
 Version = Annotated[int, Field(ge=1)]
 Page = Annotated[int, Field(ge=1)]
+Query = Annotated[str, Field(min_length=1, max_length=QUERY_MAX)]
 Title = Annotated[str, Field(min_length=1, max_length=TITLE_MAX)]
 Text = Annotated[str, Field(min_length=1, max_length=TEXT_MAX)]
 Summary = Annotated[str, Field(min_length=1, max_length=SUMMARY_MAX)]
@@ -35,3 +37,4 @@ Tier = Annotated[int, Field(ge=1, le=TIER_MAX)]
 Kind = Annotated[str, Field(min_length=1, max_length=KIND_MAX)]
 Url = Annotated[str, Field(min_length=1, max_length=URL_MAX)]
 Doi = Annotated[str, Field(min_length=1, max_length=DOI_MAX)]
+Keywords = Annotated[list[Kind], Field(max_length=8)]  # optional search words, 64 chars each

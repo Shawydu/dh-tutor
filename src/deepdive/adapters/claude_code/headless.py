@@ -34,7 +34,7 @@ class ClaudeProbe:
                 else f"agenda_item_id {item.agenda_item_id}"
             )
             lines.append(f"{n}. [{item.kind}] {ref}: {item.question}")
-            lines += [f"   - query: {q}" for q in item.queries]
+            lines.append(f"   - search: query {item.query!r}, optional {item.keywords!r}")
         return "\n".join(lines)
 
     def mcp_config(self, run_id: UUID, topic_id: UUID) -> str:

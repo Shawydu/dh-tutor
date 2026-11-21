@@ -49,7 +49,7 @@ facets in order. A scope change later is a new `charter_write` (and `agenda_set`
 
 For each agenda item (`agenda_next` gives the first open one):
 
-1. `search` (and `fetch` for a page worth reading) for the facet.
+1. `search` (and `fetch` for a page worth reading) for the facet: `query` is the topic name in 1-3 words, `optional` the facet's key words; never a sentence.
 2. Explain it to the user in a few short paragraphs, citing what you found as url links.
 3. Record each established point with `claim_add` (`text`, `source_ids`). Use `evidence_add` to
    attach another source to an existing claim. Use `source_register` only for a source you already
