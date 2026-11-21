@@ -1,6 +1,6 @@
 from typing import Any
 
-from deepdive.ledger.limits import Id, Items, Text, Version
+from deepdive.ledger.limits import Id, Items, SearchTerms, Text, Version
 from deepdive.ledger.tools._common import Tools
 from deepdive.store.errors import CharterNotFoundError
 
@@ -14,14 +14,17 @@ class CharterTools(Tools):
         in_scope: Items,
         parked: Items,
         done_when: Text,
+        search_terms: SearchTerms | None = None,
     ) -> dict[str, Any]:
-        """Store a new charter version for the topic (1 first, then one more each time)."""
+        """Store a new charter version for the topic (1 first, then one more each time).
+        search_terms: up to two words every web search for this topic must contain."""
         return self.ctx.store.charters.write(
             topic_id,
             core_questions=core_questions,
             in_scope=in_scope,
             parked=parked,
             done_when=done_when,
+            search_terms=search_terms or [],
             session_id=session_id,
         ).model_dump(mode="json")
 

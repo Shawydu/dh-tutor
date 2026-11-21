@@ -20,6 +20,7 @@ class CharterRepo(Repo[Charter]):
         in_scope: Sequence[str],
         parked: Sequence[str],
         done_when: str,
+        search_terms: Sequence[str] = (),
         session_id: UUID | None = None,
     ) -> Charter:
         """Store a new charter version: 1 for a topic's first, then one more each time."""
@@ -32,8 +33,9 @@ class CharterRepo(Repo[Charter]):
             ).fetchone()[0]
             self.conn.execute(
                 "INSERT INTO charter"
-                " (topic_id, version, core_questions, in_scope, parked, done_when, session_id)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                " (topic_id, version, core_questions, in_scope, parked, done_when, search_terms,"
+                " session_id)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     topic_id,
                     version,
@@ -41,6 +43,7 @@ class CharterRepo(Repo[Charter]):
                     json.dumps(list(in_scope)),
                     json.dumps(list(parked)),
                     done_when,
+                    json.dumps(list(search_terms)),
                     session_id,
                 ),
             )

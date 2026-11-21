@@ -14,6 +14,7 @@ def _write(store: Store, topic_id: UUID, done_when: str = "done") -> int:
         in_scope=["a", "b"],
         parked=[],
         done_when=done_when,
+        search_terms=["Py"],
     ).version
 
 
@@ -33,7 +34,12 @@ def test_get_latest_and_get_version_round_trip_the_lists(store: Store) -> None:
     latest = store.charters.get_latest(topic.id)
     assert latest is not None
     assert (latest.version, latest.done_when) == (2, "second")
-    assert (latest.core_questions, latest.in_scope, latest.parked) == (["why?"], ["a", "b"], [])
+    assert (latest.core_questions, latest.in_scope, latest.parked, latest.search_terms) == (
+        ["why?"],
+        ["a", "b"],
+        [],
+        ["Py"],
+    )
     old = store.charters.get_version(topic.id, 1)
     assert old is not None
     assert old.done_when == "first"

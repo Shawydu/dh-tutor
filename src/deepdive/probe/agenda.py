@@ -18,7 +18,7 @@ from deepdive.store.repos.questions import STOP_WORDS
 KINDS = ("clash", "agenda", "frontier", "challenge", "open")
 _WORD = re.compile(r"[^\W_]{4,}")
 _TOKEN = re.compile(r"[^\W_]+")
-QUERY_WORDS = 2  # providers AND these, so only the head of the topic name; the rest ranks
+QUERY_WORDS = 2  # providers AND these, so only the charter terms or the head of the title
 MAX_KEYWORDS = 6
 # a facet the user does by hand, which a web search cannot research
 # shortcut: keyword guess, upgrade when agenda items get a kind column
@@ -72,7 +72,9 @@ class AgendaBuilder:
         )
         facet_words = set(_WORD.findall(item.facet.casefold())) if item else set()
         title = self.store.topics.require(topic_id).title
-        query = " ".join(search_words(title)[:QUERY_WORDS] or title.split()[:QUERY_WORDS])
+        charter = self.store.charters.get_latest(topic_id)
+        terms = (charter.search_terms if charter else []) or search_words(title) or title.split()
+        query = " ".join(terms[:QUERY_WORDS])
         skip = {w.casefold() for w in query.split()}
 
         def kind(q: Question) -> str:

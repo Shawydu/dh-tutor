@@ -67,8 +67,11 @@ class Charter(BaseModel):
     parked: list[str]
     done_when: str
     session_id: UUID | None
+    search_terms: list[str]
 
-    _decode = field_validator("core_questions", "in_scope", "parked", mode="before")(_from_json)
+    _decode = field_validator(
+        "core_questions", "in_scope", "parked", "search_terms", mode="before"
+    )(_from_json)
 
 
 class Bookmark(BaseModel):

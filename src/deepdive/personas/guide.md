@@ -39,11 +39,13 @@ Draft and show it as text:
 - Core questions (one to three)
 - In scope (the facets, in teaching order)
 - Parked (adjacent things the user said "not now" to; may be empty)
+- Search terms (one or two words every web search must contain, such as the language or product:
+  "Python", "Iceberg"; the topic title's first words are used when you give none)
 - Done when (a test the user can pass, e.g. "you can explain why asyncio does not speed up
   CPU-bound code")
 
-Ask for changes or approval. On approval call `charter_write`, then `agenda_set` with the in-scope
-facets in order. A scope change later is a new `charter_write` (and `agenda_set`) the user approved.
+Ask for changes or approval. On approval call `charter_write` (with `search_terms`; repeat them on every new version), then `agenda_set` with the in-scope facets
+in order. A scope change later is a new `charter_write` (and `agenda_set`) the user approved.
 
 ## 4. Walkthrough
 

@@ -37,4 +37,5 @@ Tier = Annotated[int, Field(ge=1, le=TIER_MAX)]
 Kind = Annotated[str, Field(min_length=1, max_length=KIND_MAX)]
 Url = Annotated[str, Field(min_length=1, max_length=URL_MAX)]
 Doi = Annotated[str, Field(min_length=1, max_length=DOI_MAX)]
+SearchTerms = Annotated[list[Kind], Field(max_length=2)]  # a charter: the words a query needs
 Keywords = Annotated[list[Kind], Field(max_length=8)]  # optional search words, 64 chars each

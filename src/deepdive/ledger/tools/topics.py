@@ -131,6 +131,7 @@ class TopicTools(Tools):
             in_scope=[],
             parked=[],
             done_when=parent_charter.done_when,
+            search_terms=parent_charter.search_terms,
         )
         nxt = self.ctx.store.agenda.next_open(parent_id)
         old = parent_session.bookmark

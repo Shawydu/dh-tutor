@@ -90,6 +90,21 @@ def test_topic_with_only_agenda_items_gets_entries(store: Store, prepared: Seed)
     assert (entries[0].query, entries[0].keywords) == ("Fresh topic", ["Second", "facet"])
 
 
+@pytest.mark.parametrize(
+    ("terms", "query"),
+    [(["Python", "asyncio"], "Python asyncio"), ([], "Fresh topic")],
+    ids=["charter-terms", "empty-falls-back-to-title"],
+)
+def test_query_words_come_from_the_charter(store: Store, terms: list[str], query: str) -> None:
+    """The charter's search terms are the required query words; no terms means the title's words."""
+    topic = store.topics.create("Fresh topic").id
+    store.charters.write(
+        topic, core_questions=["a"], in_scope=["b"], parked=[], done_when="c", search_terms=terms
+    )
+    store.agenda.replace_items(topic, ["Some facet"])
+    assert AgendaBuilder(store, ProbeConfig()).build(topic)[0].query == query
+
+
 def test_only_the_next_facet_is_on_the_agenda(store: Store) -> None:
     """Several open facets give one entry (the next), so they do not crowd out questions."""
     topic = store.topics.create("Fresh topic").id
