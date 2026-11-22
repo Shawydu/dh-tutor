@@ -27,6 +27,7 @@ A local, single-user learning engine for software engineering topics. A user giv
 - Commands: `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format .`, `uv run mypy`.
 - No network in unit tests. Use recorded fixtures under `tests/fixtures/` and the fake classifier.
 - SQL lives in `src/deepdive/store/migrations/NNNN_name.sql`. Never edit an applied migration; add a new one.
+- When two config sources can set the same value (env var, `secrets.env`, `config.toml`), decide which one wins, document it and test it before the task is done.
 ## Schema and type conventions
 
 SQLite has no UUID, timestamp or enum types. The schema declares them by name, enforces them with CHECKs and lookup tables, and `Database` maps the declared names to real Python types. A new column follows these rules from the day it is added. `test_columns_follow_the_type_conventions` in `tests/test_db.py` fails on a column that doesn't.
@@ -41,10 +42,11 @@ SQLite has no UUID, timestamp or enum types. The schema declares them by name, e
 ## How we work: tasks
 
 - The plan is in `tasks/`. `tasks/README.md` is the index and status board.
-- Work on **one task per session**. Start with `/do-task <ID>`; finish with `/verify-task <ID>`.
+- Work on **one task per session**. Start with `/do-task <ID>`; finish with `/verify-task <ID>`. If the user names several tasks, do them one at a time: finish each (review loop, `tasks/README.md`, commit) before starting the next.
 - A task is done only when every acceptance check passes and `tasks/README.md` is updated.
 - If a task is unclear or wrong, stop and say so. Propose an edit to the task file rather than guessing.
 - Don't build ahead. Stubs for later tasks are fine only where a task says so.
+- Orchestration: the main session orchestrates and does not implement. It fires a Sonnet subagent (`model: "sonnet"`) for the actual implementation, then owns the review loop and the finishing touches, and steps in when a result goes off the rails.
 - Commit once per completed step (task or refactor step, after the review loop passes), staging only that step's files. Never push; the user pushes.
 
 ## Testing scope
