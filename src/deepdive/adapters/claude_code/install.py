@@ -54,6 +54,13 @@ SKILLS = {
         "[topic or number]",
         f"Resume the topic: $ARGUMENTS\n\n{PICK} {RESUME}",
     ),
+    "student": (
+        "Choose which students ask questions at checkpoints",
+        "curious|skeptic|both|off",
+        "Call `session_student_mode_set` with the open session's id and `mode` = $ARGUMENTS "
+        "(one of curious, skeptic, both, off; ask which if it is none of these, or if no "
+        "session is open). Confirm the mode in one line.",
+    ),
     "digest": (
         "Show today's morning digest",
         "[YYYY-MM-DD]",
@@ -89,10 +96,29 @@ class InstallError(Exception):
     pass
 
 
+STUDENTS = ("curious", "skeptic")
+
+
+def _persona_parts(name: str) -> tuple[dict[str, str], str]:
+    """A persona file's front matter (flat `key: value` lines) and body."""
+    text = resources.files("deepdive.personas").joinpath(f"{name}.md").read_text("utf-8")
+    _, head, body = text.split("---\n", 2)
+    meta = dict(line.split(": ", 1) for line in head.splitlines())
+    return meta, body.strip()
+
+
 def _persona(name: str) -> str:
     """A persona file's body, without its front matter."""
-    text = resources.files("deepdive.personas").joinpath(f"{name}.md").read_text("utf-8")
-    return text.split("---\n", 2)[2].strip()
+    return _persona_parts(name)[1]
+
+
+def _subagent(name: str) -> str:
+    """The persona as a Claude Code subagent: tool names get the MCP prefix."""
+    meta, body = _persona_parts(name)
+    # shortcut: hand-built front matter; a newline in a field breaks it, use YAML if personas grow
+    tools = ", ".join(f"mcp__deepdive__{t.strip()}" for t in meta["tools"].strip("[]").split(","))
+    head = f"name: {meta['id']}\ndescription: {meta['description']}\ntools: {tools}"
+    return f"---\n{head}\n---\n{_persona('_shared')}\n\n{body}\n"
 
 
 def _json(data: object) -> str:
@@ -130,6 +156,8 @@ class Workspace:
             }
         )
         files["CLAUDE.md"] = f"{_persona('_shared')}\n\n{_persona('guide')}\n"
+        for name in STUDENTS:
+            files[f".claude/agents/{name}.md"] = _subagent(name)
         for name, (desc, hint, body) in SKILLS.items():
             hint_line = f"argument-hint: {hint}\n" if hint else ""
             files[f".claude/skills/{name}/SKILL.md"] = (

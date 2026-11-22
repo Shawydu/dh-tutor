@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
+from deepdive.store.enums import SessionStudentMode
 from deepdive.store.errors import SessionNotFoundError
 from deepdive.store.ids import new_id
 from deepdive.store.models import Bookmark, Session
@@ -44,6 +45,11 @@ class SessionRepo(IdRepo[Session]):
         self.conn.execute(
             "UPDATE session SET bookmark = ? WHERE id = ?", (mark.model_dump_json(), session_id)
         )
+        return self.require(session_id)
+
+    def set_student_mode(self, session_id: UUID, mode: SessionStudentMode) -> Session:
+        self.require(session_id)
+        self.conn.execute("UPDATE session SET student_mode = ? WHERE id = ?", (mode, session_id))
         return self.require(session_id)
 
     def end(self, session_id: UUID, summary: str, *, at: datetime) -> Session:

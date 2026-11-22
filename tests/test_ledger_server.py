@@ -27,6 +27,7 @@ TOOLS = {
     "topic_overview", "resume_brief", "topic_recap", "recap_save", "digest_get",
     "charter_write", "charter_get",
     "session_start", "session_bookmark", "session_end", "session_attach",
+    "session_student_mode_set",
     "agenda_set", "agenda_next", "agenda_done",
     "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
     "concept_tag", "concept_list", "concept_merge",
@@ -780,3 +781,16 @@ def test_concept_tools_tag_list_and_merge(ledger: Ledger) -> None:
     mutex = listed[2]["id"]
     assert ledger.call("concept_merge", a=names["lock"], b=mutex)["name"] == "lock"
     assert [c["name"] for c in ledger.call("concept_list")["concepts"]] == ["gil", "lock"]
+
+
+def test_session_student_mode_defaults_to_both_and_can_be_set(ledger: Ledger) -> None:
+    """A new session has student_mode both; session_student_mode_set changes it, junk is refused."""
+    tid, _ = _session(ledger)
+    started = ledger.call("session_start", topic_id=tid)
+    assert started["student_mode"] == "both"
+    sid = started["id"]
+    got = ledger.call("session_student_mode_set", session_id=sid, mode="skeptic")
+    assert got["student_mode"] == "skeptic"
+    assert ledger.call("session_student_mode_set", session_id=sid, mode="loud")["error"] == (
+        "invalid_input"
+    )

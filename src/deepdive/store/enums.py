@@ -27,6 +27,13 @@ class QuestionAsker(StrEnum):
     PROBE = "probe"
 
 
+class SessionStudentMode(StrEnum):
+    OFF = "off"
+    CURIOUS = "curious"
+    SKEPTIC = "skeptic"
+    BOTH = "both"
+
+
 class QuestionStatus(StrEnum):
     OPEN = "open"
     ANSWERED = "answered"

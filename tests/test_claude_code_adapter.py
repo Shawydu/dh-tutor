@@ -1,6 +1,7 @@
 """Claude Code workspace generation: files land in tmp_path, nothing touches the real home."""
 
 import json
+from importlib import resources
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -42,8 +43,20 @@ def test_init_writes_the_locked_down_workspace(tmp_path: Path) -> None:
     }
     claude_md = (tmp_path / "CLAUDE.md").read_text()
     assert "# Shared rules" in claude_md and "# Guide" in claude_md and "---" not in claude_md[:4]
-    assert not (tmp_path / ".claude/agents").exists()
-    for skill in ("dive", "topics", "resume", "parked", "sumup", "digest"):
+    for student in ("curious", "skeptic"):
+        agent = (tmp_path / f".claude/agents/{student}.md").read_text()
+        assert agent.startswith(f"---\nname: {student}\n")
+        assert "tools: mcp__deepdive__claim_list, mcp__deepdive__evidence_list" in agent
+        assert (
+            len(
+                resources.files("deepdive.personas")
+                .joinpath(f"{student}.md")
+                .read_text()
+                .splitlines()
+            )
+            < 150
+        )
+    for skill in ("dive", "topics", "resume", "parked", "sumup", "digest", "student"):
         assert (tmp_path / f".claude/skills/{skill}/SKILL.md").exists()
     assert "$ARGUMENTS" in (tmp_path / ".claude/skills/dive/SKILL.md").read_text()
     assert (tmp_path / MARKER).exists()

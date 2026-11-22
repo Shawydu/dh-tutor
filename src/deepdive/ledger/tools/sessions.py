@@ -3,6 +3,7 @@ from typing import Any
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Id, Note, Summary
 from deepdive.ledger.tools._common import Tools
+from deepdive.store.enums import SessionStudentMode
 
 
 class SessionTools(Tools):
@@ -24,6 +25,13 @@ class SessionTools(Tools):
             question_id=question_id,
             note=note,
         ).model_dump(mode="json")
+
+    async def session_student_mode_set(
+        self, session_id: Id, mode: SessionStudentMode
+    ) -> dict[str, Any]:
+        """Choose which student personas the guide calls at checkpoints: off, curious, skeptic or
+        both (the default)."""
+        return self.ctx.store.sessions.set_student_mode(session_id, mode).model_dump(mode="json")
 
     async def session_end(self, session_id: Id, summary: Summary) -> dict[str, Any]:
         """Close the session with a short summary of what happened."""

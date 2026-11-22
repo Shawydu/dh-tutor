@@ -2,7 +2,7 @@
 id: guide
 role: guide
 invoked_by: user
-tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
+tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, session_student_mode_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
 ---
 # Guide
 
@@ -57,7 +57,7 @@ For each agenda item (`agenda_next` gives the first open one):
    attach another source to an existing claim. Use `source_register` only for a source you already
    know the url of and did not get from `search` or `fetch`.
 4. `agenda_done` for the item, then `session_bookmark` with the next item and a one-line note.
-5. Check in: ask whether to continue or dig into something.
+5. Run a checkpoint (section 9), then check in: ask whether to continue or dig into something.
 
 ## 5. Adjacent questions
 
@@ -84,12 +84,6 @@ question, call `question_record` (their words as `text`, asker `user`). Then act
 - clashes with an earlier claim: reopen it with the user, re-check it, and if it was too strong
   add a weakening piece of evidence with `claim_add`.
 - adjacent or outside the charter: as below.
-
-Student questions (asker `curious` or `skeptic`) that you accept and tag are put to the user:
-first call `rubric_write` (`key_points` a good answer covers, `misconceptions` to watch for),
-then ask. When the user answers, call `answer_grade` with their answer. If it returns
-`needs_judgement`, grade it yourself against the rubric and call `answer_grade_set` (grade
-wrong, partial, correct or insightful, and your confidence).
 
 If it is in scope, answer it in the walkthrough. If it is next to the charter's scope,
 offer exactly two choices and wait:
@@ -137,6 +131,23 @@ was learned, as claims with source links; questions answered, still open and par
 sessions went, in a few lines; suggested next steps. Show it in chat, then call `recap_save`
 with your `session_id` (start a session first if you have none) and the markdown. Say where it
 was saved. If `truncated` is true, say the recap is partial.
+
+## 9. Student checkpoints
+
+`session_start` returns `student_mode`; every new session starts at `both`. With `off`, skip
+checkpoints. Run a checkpoint after each agenda item and after any significant piece of evidence:
+
+1. Pick the student: the mode's one, or alternate curious and skeptic when it is `both`. Call
+   that subagent with the topic id and one line on what was just covered. It returns
+   `{"question": ..., "kind": "tangent" | "challenge"}`.
+2. Call `question_submit` with the question as `text`, asker `curious` or `skeptic`, and 1-4
+   `concepts`. If `kind` is `duplicate`, `unsure` or `not_a_question`, drop it silently.
+3. Call `rubric_write` (`key_points` a good answer covers, `misconceptions` to watch for). Put the
+   question to the user verbatim, with three options: answer, pass to the guide, or skip.
+4. Answer: call `answer_grade` with their answer. On `needs_judgement`, grade it yourself against
+   the rubric and call `answer_grade_set` (wrong, partial, correct or insightful, and your
+   confidence). Then build on their answer and correct misconceptions. Pass: you answer it.
+   Skip: leave it open for the probe.
 
 ## Example turn
 

@@ -22,6 +22,7 @@ from deepdive.store.enums import (
     QuestionAsker,
     QuestionEdgeRelation,
     QuestionStatus,
+    SessionStudentMode,
     TopicStatus,
 )
 
@@ -89,6 +90,7 @@ class Session(BaseModel):
     ended_at: AwareDatetime | None
     bookmark: Bookmark | None
     summary: str | None
+    student_mode: SessionStudentMode
 
     _decode = field_validator("bookmark", mode="before")(_from_json)
 

@@ -95,20 +95,34 @@ class Database:
                 files[version] = entry
         self.conn.execute(_SCHEMA_MIGRATIONS)
         applied: list[str] = []
-        for version, entry in sorted(files.items()):
-            with self.transaction():
-                # checked inside the write lock, so two processes migrating at once apply it once
-                if self.conn.execute(
-                    "SELECT 1 FROM schema_migrations WHERE version=?", (version,)
-                ).fetchone():
-                    continue
-                self.conn.executescript(entry.read_text("utf-8"))
-                name = entry.name.removesuffix(".sql")
-                self.conn.execute(
-                    "INSERT INTO schema_migrations (version, name) VALUES (?, ?)", (version, name)
-                )
-                applied.append(name)
+        # Foreign keys off so a migration can rebuild a referenced table (SQLite's 12-step
+        # ALTER); the PRAGMA is a no-op inside a transaction, and foreign_key_check runs before
+        # each commit instead.
+        self.conn.execute("PRAGMA foreign_keys=OFF")
+        try:
+            for version, entry in sorted(files.items()):
+                if self._apply(version, entry):
+                    applied.append(entry.name.removesuffix(".sql"))
+        finally:
+            self.conn.execute("PRAGMA foreign_keys=ON")
         return applied
+
+    def _apply(self, version: int, entry: Traversable) -> bool:
+        """Apply one migration in its own transaction; False when it was already applied."""
+        with self.transaction():
+            # checked inside the write lock, so two processes migrating at once apply it once
+            if self.conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE version=?", (version,)
+            ).fetchone():
+                return False
+            self.conn.executescript(entry.read_text("utf-8"))
+            if broken := self.conn.execute("PRAGMA foreign_key_check").fetchall():
+                raise sqlite3.IntegrityError(f"{entry.name} breaks foreign keys: {broken[:3]}")
+            name = entry.name.removesuffix(".sql")
+            self.conn.execute(
+                "INSERT INTO schema_migrations (version, name) VALUES (?, ?)", (version, name)
+            )
+            return True
 
     def applied_migrations(self) -> list[tuple[str, datetime]]:
         """(name, applied_at) of every applied migration, oldest first.

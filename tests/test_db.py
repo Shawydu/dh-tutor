@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import UTC, datetime, timedelta, timezone
+from importlib import resources
 from pathlib import Path
 from uuid import UUID
 
@@ -20,8 +21,10 @@ from deepdive.store.enums import (
     QuestionAsker,
     QuestionEdgeRelation,
     QuestionStatus,
+    SessionStudentMode,
     TopicStatus,
 )
+from deepdive.store.ids import new_id
 
 runner = CliRunner()
 
@@ -64,6 +67,7 @@ ENUM_COLUMNS = [
     ("discovery", "target_type", "discovery_target_type"),
     ("knowledge_evidence", "kind", "knowledge_evidence_kind"),
     ("knowledge_evidence", "grade", "knowledge_evidence_grade"),
+    ("session", "student_mode", "session_student_mode"),
 ]
 
 
@@ -139,6 +143,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             "0009_charter_search_terms",
             "0010_concepts",
             "0011_knowledge_level_real",
+            "0012_session_student_mode",
         ]
         assert db.migrate() == []
         assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
@@ -153,6 +158,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             (9, "0009_charter_search_terms"),
             (10, "0010_concepts"),
             (11, "0011_knowledge_level_real"),
+            (12, "0012_session_student_mode"),
         ]
 
 
@@ -198,6 +204,48 @@ def test_failing_migration_leaves_nothing_half_applied(tmp_path: Path) -> None:
         # once the file is fixed it applies cleanly, so nothing was marked applied
         (tmp_path / "0002_bad.sql").write_text("CREATE TABLE half (id INTEGER);")
         assert db.migrate(tmp_path) == ["0002_bad"]
+
+
+def test_rebuilding_session_keeps_existing_rows_and_their_children(tmp_path: Path) -> None:
+    """0012 rebuilds a populated session table; rows, children and foreign keys survive."""
+    old = tmp_path / "old"
+    old.mkdir()
+    for f in resources.files("deepdive.store.migrations").iterdir():
+        if f.name[:4].isdigit() and f.name < "0012":
+            (old / f.name).write_text(f.read_text("utf-8"))
+    topic, session, question = (str(new_id()) for _ in range(3))
+    with Database(tmp_path / "old.db") as db:
+        db.migrate(old)
+        db.conn.execute("INSERT INTO topic (id, title, status) VALUES (?, 't', 'active')", (topic,))
+        db.conn.execute(
+            "INSERT INTO session (id, topic_id, started_at) VALUES (?, ?, ?)",
+            (session, topic, "2026-01-01T00:00:00Z"),
+        )
+        db.conn.execute(
+            "INSERT INTO question (id, topic_id, session_id, asker, raw_text, clean_text)"
+            " VALUES (?, ?, ?, 'user', 'q?', 'q')",
+            (question, topic, session),
+        )
+        assert db.migrate()[-1] == "0012_session_student_mode"
+        assert db.conn.execute("SELECT id, student_mode FROM session").fetchall() == [
+            (UUID(session), "both")
+        ]
+        assert db.conn.execute("PRAGMA foreign_keys").fetchone() == (1,)
+        with pytest.raises(sqlite3.IntegrityError):
+            db.conn.execute("DELETE FROM session")
+
+
+def test_migration_that_breaks_foreign_keys_is_refused(tmp_path: Path) -> None:
+    """Migrations run with foreign keys off, so a dangling reference is caught before commit."""
+    (tmp_path / "0001_parent.sql").write_text(
+        "CREATE TABLE parent (id TEXT PRIMARY KEY);"
+        "CREATE TABLE child (parent_id TEXT REFERENCES parent (id));"
+    )
+    (tmp_path / "0002_dangle.sql").write_text("INSERT INTO child VALUES ('missing');")
+    with Database(tmp_path / "fk.db") as db:
+        with pytest.raises(sqlite3.IntegrityError, match="0002_dangle"):
+            db.migrate(tmp_path)
+        assert db.conn.execute("SELECT count(*) FROM child").fetchone() == (0,)
 
 
 def test_duplicate_migration_version_is_refused(tmp_path: Path) -> None:
@@ -419,7 +467,7 @@ def test_enum_tables_match_the_python_enums(db: Database) -> None:
         TopicStatus, AgendaItemStatus, QuestionAsker, QuestionStatus, QuestionEdgeRelation,
         ClaimStatus, EvidenceStance, ProbeRunStatus, DiscoveryEffect, DiscoveryTargetType,
         KnowledgeEvidenceKind,
-        KnowledgeEvidenceGrade,
+        KnowledgeEvidenceGrade, SessionStudentMode,
     ):  # fmt: skip
         table = "".join("_" + c.lower() if c.isupper() else c for c in enum.__name__).lstrip("_")
         values = {v for (v,) in db.conn.execute(f"SELECT value FROM {table}")}
