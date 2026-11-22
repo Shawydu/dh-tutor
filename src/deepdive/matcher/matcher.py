@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from deepdive import clock
 from deepdive.classify import Answer, Choice, Classifier, ClassifyResult, YesNo
 from deepdive.config import Config
-from deepdive.knowledge.store import EVIDENCE_WEIGHT, KnowledgeStore
+from deepdive.knowledge.store import KnowledgeStore
+from deepdive.knowledge.update import record
 from deepdive.matcher.candidates import CandidateFinder
 from deepdive.matcher.embed import Embedder, NullEmbedder
 from deepdive.store.enums import (
@@ -111,8 +112,8 @@ class Matcher:
         """Evidence on the repeated question's concepts that the user asked again; the caller's
         transaction."""
         for concept in self.store.concepts.for_question(repeated_id):
-            self.knowledge.add_evidence(
-                concept.id, KnowledgeEvidenceKind.REPEAT_QUESTION, EVIDENCE_WEIGHT, clock.now(),
+            record(
+                self.knowledge, concept.id, KnowledgeEvidenceKind.REPEAT_QUESTION, clock.now(),
                 session_id=session_id, question_id=question_id,
             )  # fmt: skip
 

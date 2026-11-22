@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import sys
 from datetime import date
@@ -30,6 +31,8 @@ probe_app = typer.Typer(no_args_is_help=True, help="The overnight probe.")
 app.add_typer(probe_app, name="probe")
 digest_app = typer.Typer(no_args_is_help=True, help="The morning digest.")
 app.add_typer(digest_app, name="digest")
+knowledge_app = typer.Typer(no_args_is_help=True, help="What you know per concept.")
+app.add_typer(knowledge_app, name="knowledge")
 schedule_app = typer.Typer(no_args_is_help=True, help="Run the probe and digest daily (launchd).")
 app.add_typer(schedule_app, name="schedule")
 
@@ -280,6 +283,49 @@ def digest_build(
         raise typer.Exit(1) from err
     with Database(paths.db) as db:
         typer.echo(DigestBuilder(Store(db), config.digest.folder(paths.digests)).write(when))
+
+
+@knowledge_app.command("simulate")
+def knowledge_simulate(
+    events: Annotated[
+        Path, typer.Argument(help="JSONL, one evidence event of one concept per line.")
+    ],
+) -> None:
+    """Replay evidence events (kind, grade, level, grader_confidence, at) and print the state
+    after each; no database. For tuning the update rule."""
+    from deepdive.knowledge.store import KnowledgeEvidence
+    from deepdive.knowledge.update import base_weight, update
+    from deepdive.store.ids import new_id
+
+    concept_id = new_id()
+    history: list[KnowledgeEvidence] = []
+    for line in events.read_text().splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        history.append(
+            KnowledgeEvidence.model_validate(
+                {
+                    "id": new_id(),
+                    "concept_id": concept_id,
+                    "session_id": None,
+                    "question_id": None,
+                    "grade": None,
+                    "level": None,
+                    "grader": None,
+                    "grader_confidence": None,
+                    "weight": base_weight(row["kind"]),
+                    "created_at": row.pop("at"),
+                    **row,
+                }
+            )  # fmt: skip
+        )
+        s = update(history, history[-1].created_at)
+        typer.echo(
+            f"{history[-1].created_at:%Y-%m-%d} {history[-1].kind:<18} level={s.level:.2f}"
+            f" confidence={s.confidence:.2f} stability={s.stability:.0f}"
+            f" next_recap_at={s.next_recap_at:%Y-%m-%d}"
+        )
 
 
 def _scheduler() -> "Scheduler":

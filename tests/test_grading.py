@@ -135,3 +135,15 @@ def test_rubric_is_for_student_questions_only(tmp_path: Path, asker: str) -> Non
     _, _, qid = _question(ledger, asker)
     got = ledger.call("rubric_write", question_id=qid, key_points=KEY_POINTS, misconceptions=[])
     assert got["error"] == "invalid_input"
+
+
+def test_a_grade_updates_each_concepts_state(tmp_path: Path) -> None:
+    """Grading writes the evidence and a knowledge state (level from the grade) per concept."""
+    ledger = _ledger(tmp_path, "partial", 0.5)
+    _, sid, qid = _question(ledger)
+    ledger.call("rubric_write", question_id=qid, key_points=KEY_POINTS, misconceptions=[])
+    ledger.call("answer_grade_set", question_id=qid, grade="correct", confidence=1, session_id=sid)
+    assert ledger.count("knowledge_state") == 2
+    with Database(ledger.paths.db) as db:
+        states = [SqliteKnowledgeStore(db).get_state(c.id) for c in Store(db).concepts.list_all()]
+    assert all(s and s.level == pytest.approx(3) and s.next_recap_at for s in states)

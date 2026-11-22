@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
+from deepdive.store.enums import DiscoveryTargetType
 from deepdive.store.errors import ClaimNotFoundError, ConceptNotFoundError, QuestionNotFoundError
 from deepdive.store.ids import new_id
 from deepdive.store.models import Concept, ConceptLink
@@ -75,6 +76,21 @@ class ConceptRepo(IdRepo[Concept]):
             " ORDER BY name",
             (question_id,),
         )
+
+    def for_claim(self, claim_id: UUID) -> list[Concept]:
+        """The claim's concept tags, by name."""
+        return self._many(
+            "WHERE id IN (SELECT concept_id FROM claim_concept WHERE claim_id = ?) ORDER BY name",
+            (claim_id,),
+        )
+
+    def for_target(self, target_type: DiscoveryTargetType, target_id: UUID) -> list[Concept]:
+        """The concept tags of a question or claim; an agenda item has none."""
+        if target_type == DiscoveryTargetType.QUESTION:
+            return self.for_question(target_id)
+        if target_type == DiscoveryTargetType.CLAIM:
+            return self.for_claim(target_id)
+        return []
 
     def list_all(self, topic_id: UUID | None = None) -> list[Concept]:
         """Every concept by name, or those tagged on a question or claim of the topic."""

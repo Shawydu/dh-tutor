@@ -105,6 +105,8 @@ def test_user_repeat_adds_evidence_to_the_earlier_questions_concepts(
     assert (row.kind, row.question_id, row.grade, row.weight) == (
         "repeat_question", got.question_id, None, 1.0,
     )  # fmt: skip
+    state = SqliteKnowledgeStore(store.db).get_state(concept.id)
+    assert state is not None and state.level == 1
 
 
 def test_not_a_question_stores_nothing(store: Store, seed_topics: Seed) -> None:

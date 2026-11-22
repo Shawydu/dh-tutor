@@ -2,6 +2,7 @@ from typing import Any
 
 from deepdive.classify import Choice, Classifier, ClassifierUnavailable, YesNo
 from deepdive.config import Config
+from deepdive.knowledge.update import RECAP_MIN_LEVEL
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Finding, Id
@@ -67,4 +68,11 @@ class DiscoveryTools(Tools):
             probe_run_id, topic_id, source_id, target_type, target_id,
             DiscoveryEffect(answers["effect"].top[0]), relevance, summary,
         )  # fmt: skip
+        if concepts := store.concepts.for_target(target_type, target_id):
+            # shortcut: a second transaction, as discoveries.add opens its own; a crash between
+            # them loses the nudge only
+            with store.db.transaction():
+                self.ctx.knowledge.recap_now(
+                    [c.id for c in concepts], self.ctx.now(), RECAP_MIN_LEVEL
+                )
         return found.model_dump(mode="json")

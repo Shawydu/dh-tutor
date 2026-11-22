@@ -2,7 +2,7 @@ from typing import Any
 
 from deepdive.classify import Choice, Classifier, ClassifierUnavailable
 from deepdive.config import Config
-from deepdive.knowledge.store import EVIDENCE_WEIGHT
+from deepdive.knowledge.update import record
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Confidence, Facets, Id, Items, Summary
@@ -116,8 +116,8 @@ class GradingTools(Tools):
         with self.ctx.store.db.transaction():
             self._refuse_regrade(question.id, concepts)
             for concept in concepts:
-                self.ctx.knowledge.add_evidence(
-                    concept.id, KnowledgeEvidenceKind.ANSWERED_STUDENT_Q, EVIDENCE_WEIGHT, at,
+                record(
+                    self.ctx.knowledge, concept.id, KnowledgeEvidenceKind.ANSWERED_STUDENT_Q, at,
                     grade=grade, grader=grader, grader_confidence=confidence,
                     session_id=session_id, question_id=question.id,
                 )  # fmt: skip

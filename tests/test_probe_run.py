@@ -19,6 +19,7 @@ from test_search_web import handler
 from deepdive.adapters.claude_code.headless import ClaudeProbe
 from deepdive.classify import Answer, ClassifierUnavailable, ClassifyResult
 from deepdive.config import ProbeConfig
+from deepdive.knowledge.store import KnowledgeState, SqliteKnowledgeStore
 from deepdive.ledger.context import ProbeScope
 from deepdive.ledger.server import create_server
 from deepdive.paths import Paths
@@ -122,6 +123,35 @@ def test_discovery_add_accepts_an_agenda_item(world: World) -> None:
     """A facet finding is filed against the topic's agenda item."""
     out = add(ledger(world), world, target_type="agenda_item", target_id=str(world.item))
     assert (out["target_type"], out["target_id"]) == ("agenda_item", str(world.item))
+
+
+FAR = datetime(2030, 1, 1, tzinfo=UTC)
+PAST = datetime(2000, 1, 1, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("target", "level", "start", "due"),
+    [("question", 3.5, FAR, True), ("claim", 3.5, FAR, True), ("question", 2.5, FAR, False),
+     ("agenda_item", 3.5, FAR, False), ("question", 3.5, PAST, False)],
+    ids=["question", "claim", "level_too_low", "agenda_item_never", "already_earlier_kept"],
+)  # fmt: skip
+def test_discovery_sets_well_known_concepts_due_now(
+    world: World, target: str, level: float, start: datetime, due: bool
+) -> None:
+    """A stored discovery makes its concepts of level 3+ due now, never later than they were."""
+    store = world.store
+    far = start
+    ids = {"question": world.question, "claim": world.claim, "agenda_item": world.item}
+    (c,) = store.concepts.tag_question(world.question, ["commit"], NOW)
+    store.concepts.tag_claim(world.claim, ["commit"])
+    knowledge = SqliteKnowledgeStore(store.db)
+    knowledge.set_state(
+        KnowledgeState(concept_id=c.id, level=level, confidence=0.5, stability=0,
+                       last_evidence_at=NOW, next_recap_at=far)
+    )  # fmt: skip
+    add(ledger(world), world, target_type=target, target_id=str(ids[target]))
+    state = knowledge.get_state(c.id)
+    assert state is not None and (state.next_recap_at != far) == due
 
 
 @pytest.mark.parametrize("which", ["fresh", "cited"])

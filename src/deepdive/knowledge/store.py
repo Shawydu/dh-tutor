@@ -10,12 +10,10 @@ from deepdive.store.db import Database
 from deepdive.store.enums import KnowledgeEvidenceGrade, KnowledgeEvidenceKind
 from deepdive.store.ids import new_id
 
-EVIDENCE_WEIGHT = 1.0  # every evidence row counts the same until V2-03 tunes it
-
 
 class KnowledgeState(BaseModel):
     concept_id: UUID
-    level: int  # 0 to 4
+    level: float  # 0 to 4
     confidence: float  # 0 to 1
     stability: float
     last_evidence_at: AwareDatetime | None
@@ -68,6 +66,10 @@ class KnowledgeStore(Protocol):
 
     def merge_concepts(self, drop: UUID, keep: UUID) -> None:
         """Move `drop`'s evidence to `keep`; `keep`'s state wins, else `drop`'s moves over."""
+        ...
+
+    def recap_now(self, concept_ids: list[UUID], at: datetime, min_level: float) -> None:
+        """Make the given concepts due at `at` when their level is at least `min_level`."""
         ...
 
 
@@ -137,6 +139,15 @@ class SqliteKnowledgeStore:
             "UPDATE OR IGNORE knowledge_state SET concept_id = ? WHERE concept_id = ?", (keep, drop)
         )
         self.conn.execute("DELETE FROM knowledge_state WHERE concept_id = ?", (drop,))
+
+    def recap_now(self, concept_ids: list[UUID], at: datetime, min_level: float) -> None:
+        marks = ", ".join("?" * len(concept_ids))
+        self.conn.execute(
+            f"UPDATE knowledge_state SET next_recap_at = MIN(COALESCE(next_recap_at, ?), ?)"
+            f" WHERE level >= ?"
+            f" AND concept_id IN ({marks})",
+            (at, at, min_level, *concept_ids),
+        )
 
     def _states(self, tail: str, params: tuple[object, ...]) -> list[KnowledgeState]:
         rows = self.conn.execute(f"SELECT {_STATE} FROM knowledge_state {tail}", params)
