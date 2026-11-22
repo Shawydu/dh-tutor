@@ -69,6 +69,8 @@ class MatchResult(BaseModel):
     def render_context(self) -> str:
         """A compact text block for the hook to inject; always under CONTEXT_MAX characters."""
         lines = [f"Question matcher: {self.kind}"]
+        if self.question_id:
+            lines.append(f"Stored as question_id {self.question_id}: tag it with concept_tag.")
         if self.needs_judgement and self.related:  # nothing to link otherwise
             lines.append("Low confidence: judge how these relate, then call question_link.")
         lines += [f"- {g}" for g in self.guidance]
@@ -77,7 +79,7 @@ class MatchResult(BaseModel):
             if r.answer_summary:
                 line += f" -> {r.answer_summary[:_LINE_TEXT]}"
             lines.append(line)
-        return "\n".join(lines)[:CONTEXT_MAX]
+        return "\n".join(lines)[: CONTEXT_MAX - 1]
 
 
 def clean_text(text: str) -> str:

@@ -26,6 +26,7 @@ TOOLS = {
     "session_start", "session_bookmark", "session_end", "session_attach",
     "agenda_set", "agenda_next", "agenda_done",
     "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
+    "concept_tag", "concept_list", "concept_merge",
     "question_get", "question_answer", "parked_list",
     "question_record", "question_park", "parked_search", "question_submit", "question_link",
     "child_topic_create", "child_topic_finish", "frontier_add",
@@ -730,3 +731,27 @@ def test_session_attach_refuses(ledger: Ledger, case: str) -> None:
         }[case]
     )
     assert ledger.count("agent_session") == 0
+
+
+def test_concept_tools_tag_list_and_merge(ledger: Ledger) -> None:
+    """Questions and claims take concept tags; a topic lists them; merge leaves one concept."""
+    tid, sid = _session(ledger)
+    question = ledger.call(
+        "question_record", session_id=sid, topic_id=tid, text="why a GIL?", asker="user",
+        concepts=["Locks"],
+    )  # fmt: skip
+    source = ledger.call(
+        "source_register", session_id=sid, url="https://e.com", kind="docs", tier=1
+    )
+    ledger.call(
+        "claim_add", session_id=sid, topic_id=tid, text="the GIL is a lock",
+        source_ids=[source["id"]], concepts=["mutex"],
+    )  # fmt: skip
+    tagged = ledger.call("concept_tag", question_id=question["id"], concepts=["GIL", "lock"])
+    names = {c["name"]: c["id"] for c in tagged["concepts"]}
+    assert list(names) == ["gil", "lock"]
+    listed = ledger.call("concept_list", topic_id=tid)["concepts"]
+    assert [c["name"] for c in listed] == ["gil", "lock", "mutex"]
+    mutex = listed[2]["id"]
+    assert ledger.call("concept_merge", a=names["lock"], b=mutex)["name"] == "lock"
+    assert [c["name"] for c in ledger.call("concept_list")["concepts"]] == ["gil", "lock"]

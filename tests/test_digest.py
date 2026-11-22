@@ -47,8 +47,13 @@ def _discover(store: Store, seed: Seed) -> tuple[Discovery, Discovery]:
 
 
 def test_digest_snapshot(store: Store, seed_topics: Seed, tmp_path: Path) -> None:
-    """Findings are grouped by topic, best first, with link and resume line; edges listed."""
+    """Findings are grouped by topic, best first, with link and resume line; edges and shared
+    concepts listed."""
     weak, strong = _discover(store, seed_topics)
+    at = datetime(2026, 1, 1, tzinfo=UTC)
+    with store.db.transaction():
+        store.concepts.tag_question(seed_topics.questions["commit_concurrent"], ["OCC"], at)
+        store.concepts.tag_question(seed_topics.questions["locks_needed"], ["occ"], at)
     claim = store.claims.require(seed_topics.claims[0])
     question = store.questions.require(seed_topics.questions["problem"])
     topic = "Apache Iceberg and what it solves"
@@ -66,6 +71,7 @@ def test_digest_snapshot(store: Store, seed_topics: Seed, tmp_path: Path) -> Non
 ## Connections across topics
 
 - {topic}: "{store.questions.require(seed_topics.questions["commit_concurrent"]).clean_text}" ↔ Concurrency control in Python vs parallelism: "{store.questions.require(seed_topics.questions["locks_needed"]).clean_text}" (aspect)
+- {topic}: "{store.questions.require(seed_topics.questions["commit_concurrent"]).clean_text}" ↔ Concurrency control in Python vs parallelism: "{store.questions.require(seed_topics.questions["locks_needed"]).clean_text}" (concept: occ)
 """  # noqa: E501
     assert DigestBuilder(store, tmp_path).build(DAY) == expected
 

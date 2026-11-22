@@ -27,6 +27,14 @@ class Tools:
                     continue
                 server.tool()(getattr(self, name))
 
+    def _tag(self, question_id: UUID, concepts: list[str] | None) -> None:
+        """Tag a question with concept names (none: no-op)."""
+        # shortcut: tags commit after the question (transactions don't nest), so a crash between
+        # leaves it untagged; the guide can re-tag with concept_tag
+        if concepts:
+            with self.ctx.store.db.transaction():
+                self.ctx.store.concepts.tag_question(question_id, concepts, self.ctx.now())
+
     def _claims_with_sources(self, topic_id: UUID) -> list[dict[str, Any]]:
         """The topic's claims, each with its cited sources as `{id, url}`."""
         store = self.ctx.store

@@ -15,6 +15,8 @@ URL_MAX = 2048
 DOI_MAX = 256
 MARKDOWN_MAX = 50000  # a saved recap
 KIND_MAX = 64
+CONCEPT_MAX = 80  # a concept name: a few words
+CONCEPTS_MAX = 4  # concept tags per question or claim
 LIST_MAX = 50  # items in a list argument: facets, charter lists, source ids
 TIER_MAX = 9  # tiers are 1 (most trusted) and up; the domain pack uses 1 to 3
 PAGE_SIZE = 10  # top-level topics per /topics page
@@ -36,6 +38,8 @@ SourceIds = Annotated[list[Id], Field(min_length=1, max_length=LIST_MAX)]
 Tier = Annotated[int, Field(ge=1, le=TIER_MAX)]
 Kind = Annotated[str, Field(min_length=1, max_length=KIND_MAX)]
 Url = Annotated[str, Field(min_length=1, max_length=URL_MAX)]
+ConceptName = Annotated[str, Field(min_length=1, max_length=CONCEPT_MAX)]
+Concepts = Annotated[list[ConceptName], Field(max_length=CONCEPTS_MAX)]
 Doi = Annotated[str, Field(min_length=1, max_length=DOI_MAX)]
 SearchTerms = Annotated[list[Kind], Field(max_length=2)]  # a charter: the words a query needs
 Keywords = Annotated[list[Kind], Field(max_length=8)]  # optional search words, 64 chars each

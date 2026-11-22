@@ -64,6 +64,11 @@ class ClaimNotFoundError(NotFoundError):
     code = "claim_not_found"
 
 
+class ConceptNotFoundError(NotFoundError):
+    entity = "concept"
+    code = "concept_not_found"
+
+
 class EvidenceNotFoundError(NotFoundError):
     entity = "evidence"
     code = "evidence_not_found"

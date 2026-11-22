@@ -139,6 +139,21 @@ class Source(BaseModel):
     session_id: UUID | None
 
 
+class Concept(BaseModel):
+    id: UUID
+    name: str
+    domain: str | None
+    parent_concept_id: UUID | None
+
+
+class ConceptLink(BaseModel):
+    """Two questions in different topics tagged with the same concept."""
+
+    from_id: UUID
+    to_id: UUID
+    concept: str
+
+
 class Claim(BaseModel):
     id: UUID
     topic_id: UUID

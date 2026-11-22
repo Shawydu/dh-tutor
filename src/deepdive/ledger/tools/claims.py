@@ -2,7 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from deepdive.ledger.errors import InvalidInputError
-from deepdive.ledger.limits import Doi, Id, Kind, SourceIds, Summary, Text, Tier, Url
+from deepdive.ledger.limits import Concepts, Doi, Id, Kind, SourceIds, Summary, Text, Tier, Url
 from deepdive.ledger.tools._common import Tools
 from deepdive.store.enums import ClaimStatus, EvidenceStance
 from deepdive.store.errors import ClaimNotFoundError
@@ -47,8 +47,10 @@ class ClaimTools(Tools):
         status: ClaimStatus = ClaimStatus.ESTABLISHED,
         stance: EvidenceStance = EvidenceStance.SUPPORTS,
         excerpt_summary: Summary | None = None,
+        concepts: Concepts | None = None,
     ) -> dict[str, Any]:
-        """Add a claim with one evidence row per source in source_ids.
+        """Add a claim with one evidence row per source in source_ids, tagged with 1-4 concept
+        names.
 
         Every id must be a registered source, else nothing is written (source_not_found).
         """
@@ -61,6 +63,9 @@ class ClaimTools(Tools):
             excerpt_summary=excerpt_summary,
             session_id=session_id,
         )
+        if concepts:  # shortcut: tagged after the claim commits, as Tools._tag
+            with self.ctx.store.db.transaction():
+                self.ctx.store.concepts.tag_claim(claim.id, concepts)
         rows = self.ctx.store.evidence.list_for_claim(claim.id)
         return {
             "claim": claim.model_dump(mode="json"),

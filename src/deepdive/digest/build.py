@@ -78,6 +78,15 @@ class DigestBuilder:
                 f'- {titles[a.topic_id]}: "{_one_line(a.clean_text)}" ↔ {titles[b.topic_id]}:'
                 f' "{_one_line(b.clean_text)}" ({e.relation.value})'
             )
+        for link in self.store.concepts.cross_topic_links(since):
+            a, b = (
+                self.store.questions.require(link.from_id),
+                self.store.questions.require(link.to_id),
+            )
+            pairs.append(
+                f'- {titles[a.topic_id]}: "{_one_line(a.clean_text)}" ↔ {titles[b.topic_id]}:'
+                f' "{_one_line(b.clean_text)}" (concept: {link.concept})'
+            )
         if pairs:
             lines += ["## Connections across topics", "", *sorted(pairs), ""]
         if not findings and not pairs:

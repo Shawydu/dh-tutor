@@ -2,7 +2,7 @@ from typing import Any
 
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
-from deepdive.ledger.limits import Id, Summary, Text
+from deepdive.ledger.limits import Concepts, Id, Summary, Text
 from deepdive.ledger.tools._common import Tools
 from deepdive.matcher.matcher import Matcher, clean_text
 from deepdive.store.enums import QuestionAsker, QuestionEdgeRelation, QuestionStatus
@@ -22,20 +22,32 @@ class QuestionTools(Tools):
         return question.model_dump(mode="json")
 
     async def question_record(
-        self, session_id: Id, topic_id: Id, text: Text, asker: QuestionAsker
+        self,
+        session_id: Id,
+        topic_id: Id,
+        text: Text,
+        asker: QuestionAsker,
+        concepts: Concepts | None = None,
     ) -> dict[str, Any]:
-        """Store a question as asked (open). No matching: the clean text is the trimmed text."""
+        """Store a question as asked (open), tagged with 1-4 concept names. No matching: the clean
+        text is the trimmed text."""
         if self.ctx.store.sessions.require(session_id).topic_id != topic_id:
             raise InvalidInputError("topic_id must be the session's topic")
         clean = clean_text(text)
-        return self.ctx.store.questions.add(
-            topic_id, asker, text, clean, session_id=session_id
-        ).model_dump(mode="json")
+        question = self.ctx.store.questions.add(topic_id, asker, text, clean, session_id=session_id)
+        self._tag(question.id, concepts)
+        return question.model_dump(mode="json")
 
     async def question_submit(
-        self, session_id: Id, topic_id: Id, text: Text, asker: QuestionAsker
+        self,
+        session_id: Id,
+        topic_id: Id,
+        text: Text,
+        asker: QuestionAsker,
+        concepts: Concepts | None = None,
     ) -> dict[str, Any]:
-        """Match a new question against past ones and store it; returns guidance for the guide.
+        """Match a new question against past ones and store it, tagged with 1-4 concept names;
+        returns guidance for the guide.
 
         kind is matched, duplicate (a student repeat: drop it, nothing stored) or not_a_question
         (nothing stored). With needs_judgement, classify the related candidates yourself and
@@ -46,6 +58,8 @@ class QuestionTools(Tools):
         if not text.strip():
             raise InvalidInputError("text must not be blank")
         result = self.matcher.match(text, topic_id, asker, session_id)
+        if result.question_id:
+            self._tag(result.question_id, concepts)
         return {**result.model_dump(mode="json"), "context": result.render_context()}
 
     async def question_link(

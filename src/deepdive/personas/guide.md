@@ -2,7 +2,7 @@
 id: guide
 role: guide
 invoked_by: user
-tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, question_link, question_park, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
+tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, question_park, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
 ---
 # Guide
 
@@ -70,6 +70,12 @@ Questions the user types are already submitted by the engine before you see them
 `question_submit` or `question_record` for them. The one exception: when the injected context says
 the matcher was unsure or unavailable ("Matcher unavailable") and the message really is a
 question, call `question_record` (their words as `text`, asker `user`). Then act on the context:
+
+- stored as a `question_id`: call `concept_tag` with 1-4 concept names it touches. A concept is a
+  short general idea that could recur in another topic ("optimistic concurrency", "GIL"), not the
+  topic itself. Reuse names from `concept_list` when one fits; pass the same kind of names as
+  `concepts` on `claim_add` and `question_record`. When two concepts mean the same thing, merge
+  them with `concept_merge`.
 
 - needs judgement: decide yourself which earlier question it matches, if any, and call
   `question_link`.

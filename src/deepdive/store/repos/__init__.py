@@ -3,6 +3,7 @@ from deepdive.store.repos.agenda import AgendaRepo
 from deepdive.store.repos.agent_sessions import AgentSessionRepo
 from deepdive.store.repos.charters import CharterRepo
 from deepdive.store.repos.claims import ClaimRepo
+from deepdive.store.repos.concepts import ConceptRepo
 from deepdive.store.repos.discoveries import DiscoveryRepo
 from deepdive.store.repos.edges import EdgeRepo
 from deepdive.store.repos.evidence import EvidenceRepo
@@ -28,6 +29,7 @@ class Store:
         self.edges = EdgeRepo(db)
         self.sources = SourceRepo(db)
         self.claims = ClaimRepo(db)
+        self.concepts = ConceptRepo(db)
         self.evidence = EvidenceRepo(db)
         self.frontier = FrontierRepo(db)
         self.probe_runs = ProbeRunRepo(db)
