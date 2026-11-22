@@ -4,8 +4,9 @@ import time
 
 import pytest
 from conftest import Seed
+from fakes import FakeClassifier
 
-from deepdive.classify import Answer, Classifier, ClassifyResult, FakeClassifier, Question
+from deepdive.classify import Answer, Classifier, ClassifyResult, Question
 from deepdive.config import Config
 from deepdive.matcher.matcher import (
     ACTIONS,

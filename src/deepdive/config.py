@@ -29,10 +29,6 @@ class ClassifierConfig(_Section):
     auto_threshold: float = Field(default=0.9, ge=0, le=1)
 
 
-class EmbeddingsConfig(_Section):
-    model: str = "TBD"  # local model, picked by testing (task L-01)
-
-
 class SearchConfig(_Section):
     apis: list[str] = ["github", "arxiv", "hn"]
     session_budget: int = Field(default=30, ge=1)  # searches per interactive session
@@ -61,23 +57,16 @@ class DomainConfig(_Section):
     pack: str = "software-engineering"
 
 
-class PocConfig(_Section):
-    workspace: str | None = None  # unset: Paths.poc, so it follows DEEPDIVE_HOME
-    sandbox: Literal["devcontainer"] = "devcontainer"  # Docker Compose under a devcontainer
-
-
 class MatcherConfig(_Section):
     candidates: int = Field(default=10, ge=1)
 
 
 class Config(_Section):
     classifier: ClassifierConfig = Field(default_factory=ClassifierConfig)
-    embeddings: EmbeddingsConfig = Field(default_factory=EmbeddingsConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     probe: ProbeConfig = Field(default_factory=ProbeConfig)
     digest: DigestConfig = Field(default_factory=DigestConfig)
     domain: DomainConfig = Field(default_factory=DomainConfig)
-    poc: PocConfig = Field(default_factory=PocConfig)
     matcher: MatcherConfig = Field(default_factory=MatcherConfig)
 
     def to_toml(self) -> str:
@@ -163,9 +152,6 @@ provider = "jev"            # jev | claude
 fallback = "claude"
 auto_threshold = 0.9        # act at or above this confidence, else fall back
 
-[embeddings]
-model = "TBD"               # local model, picked by testing
-
 [search]
 apis = ["github", "arxiv", "hn"]
 session_budget = 30         # searches per interactive session
@@ -186,10 +172,6 @@ time = "07:00"              # HH:MM, 24-hour
 
 [domain]
 pack = "software-engineering"
-
-[poc]
-# workspace = "~/.deepdive/poc/"  # default: <DEEPDIVE_HOME>/poc
-sandbox = "devcontainer"    # Docker Compose under a devcontainer
 
 [matcher]
 candidates = 10             # past questions the matcher shortlists per new question

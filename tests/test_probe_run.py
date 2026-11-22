@@ -11,12 +11,13 @@ from uuid import UUID
 
 import httpx
 import pytest
+from fakes import FakeClassifier
 from mcp import Client
 from test_ledger_server import MISSING, Ledger
 from test_search_web import handler
 
 from deepdive.adapters.claude_code.headless import ClaudeProbe
-from deepdive.classify import Answer, ClassifierUnavailable, ClassifyResult, FakeClassifier
+from deepdive.classify import Answer, ClassifierUnavailable, ClassifyResult
 from deepdive.config import ProbeConfig
 from deepdive.ledger.context import ProbeScope
 from deepdive.ledger.server import create_server

@@ -13,7 +13,6 @@ from deepdive.classify import (
     Choice,
     ClassifierUnavailable,
     ClassifyResult,
-    FakeClassifier,
     FallbackClassifier,
     Question,
     YesNo,
@@ -44,10 +43,6 @@ def ok(_: httpx.Request) -> httpx.Response:
 
 def answer(top: str, p: float) -> Answer:
     return Answer(probs={top: p, "other": 1 - p})
-
-
-def canned(p: float, provider: str = "fake") -> FakeClassifier:
-    return FakeClassifier({k: answer("a", p) for k in QUESTIONS})
 
 
 def test_jev_parses_recorded_fixture_and_sends_documented_request() -> None:
@@ -147,13 +142,6 @@ def test_fallback_live_session_with_primary_down_asks_for_judgement() -> None:
 
     result = FallbackClassifier(Down(), None, 0.9).classify("s", QUESTIONS)
     assert result.answers == {} and result.needs_judgement
-
-
-def test_fake_answers_by_key_and_raises_on_unknown_question() -> None:
-    """The fake returns canned answers and refuses a question it has none for."""
-    assert canned(0.8).classify("s", QUESTIONS).provider == "fake"
-    with pytest.raises(LookupError, match="is_question"):
-        FakeClassifier({}).classify("s", QUESTIONS)
 
 
 @pytest.mark.parametrize(

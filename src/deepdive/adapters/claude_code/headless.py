@@ -25,7 +25,7 @@ class ClaudeProbe:
         self.timeout = timeout
 
     def prompt(self, run_id: UUID, topic_id: UUID, agenda: list[AgendaEntry]) -> str:
-        lines = [_persona("_shared")[1], _persona("probe")[1], "# This run", ""]
+        lines = [_persona("_shared"), _persona("probe"), "# This run", ""]
         lines += [f"probe_run_id: {run_id}", f"topic_id: {topic_id}", "", "Agenda:"]
         for n, item in enumerate(agenda, start=1):
             ref = (

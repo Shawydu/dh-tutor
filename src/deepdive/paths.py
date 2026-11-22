@@ -39,10 +39,6 @@ class Paths:
         return self.root / "recaps"
 
     @property
-    def poc(self) -> Path:
-        return self.root / "poc"
-
-    @property
     def workspace(self) -> Path:
         return self.root / "workspace"
 
@@ -64,7 +60,6 @@ class Paths:
             self.root,
             self.digests,
             self.recaps,
-            self.poc,
             self.workspace,
             self.logs,
             self.cache,

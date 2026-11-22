@@ -1,6 +1,6 @@
 """Deterministic classifier for tests: canned answers by question key."""
 
-from deepdive.classify.base import Answer, ClassifyResult, Question
+from deepdive.classify import Answer, ClassifyResult, Question
 
 
 class FakeClassifier:

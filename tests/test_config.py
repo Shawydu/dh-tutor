@@ -34,7 +34,6 @@ def test_defaults_when_no_file(tmp_path: Path) -> None:
     assert (config.probe.max_topics, config.probe.searches_per_topic) == (5, 10)
     assert config.digest.time == "07:00"
     assert config.domain.pack == "software-engineering"
-    assert config.poc.sandbox == "devcontainer"
     assert config.matcher.candidates == 10
 
 

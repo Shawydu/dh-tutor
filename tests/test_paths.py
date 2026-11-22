@@ -23,7 +23,6 @@ def test_ensure_dirs_creates_missing_folders_and_is_repeatable(tmp_path: Path) -
     for folder in (
         paths.digests,
         paths.recaps,
-        paths.poc,
         paths.workspace,
         paths.logs,
         paths.cache,

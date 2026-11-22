@@ -42,11 +42,7 @@ def test_init_writes_the_locked_down_workspace(tmp_path: Path) -> None:
     }
     claude_md = (tmp_path / "CLAUDE.md").read_text()
     assert "# Shared rules" in claude_md and "# Guide" in claude_md and "---" not in claude_md[:4]
-    skeptic = (tmp_path / ".claude/agents/skeptic-student.md").read_text()
-    assert "name: skeptic-student" in skeptic
-    assert "tools: mcp__deepdive__claim_list, mcp__deepdive__evidence_list" in skeptic
-    assert "disallowedTools: WebSearch, WebFetch" in skeptic
-    assert (tmp_path / ".claude/agents/poc-builder.md").exists()
+    assert not (tmp_path / ".claude/agents").exists()
     for skill in ("dive", "topics", "resume", "parked", "sumup", "digest"):
         assert (tmp_path / f".claude/skills/{skill}/SKILL.md").exists()
     assert "$ARGUMENTS" in (tmp_path / ".claude/skills/dive/SKILL.md").read_text()

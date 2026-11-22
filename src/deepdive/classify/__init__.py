@@ -10,7 +10,6 @@ from deepdive.classify.base import (
     YesNo,
 )
 from deepdive.classify.claude_cli import ClaudeCli
-from deepdive.classify.fake import FakeClassifier
 from deepdive.classify.jev import Jev
 from deepdive.config import Config, Secrets
 
@@ -20,7 +19,6 @@ __all__ = [
     "Classifier",
     "ClassifierUnavailable",
     "ClassifyResult",
-    "FakeClassifier",
     "FallbackClassifier",
     "Question",
     "YesNo",

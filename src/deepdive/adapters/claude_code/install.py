@@ -1,9 +1,7 @@
-"""Generate the Claude Code runtime workspace (.mcp.json, settings, agents, skills, CLAUDE.md).
+"""Generate the Claude Code runtime workspace (.mcp.json, settings, skills, CLAUDE.md).
 
 Formats checked against the Claude Code docs and the installed CLI (2.1.311), November 2026:
   https://code.claude.com/docs/en/settings.md   permissions and hooks in .claude/settings.json
-  https://code.claude.com/docs/en/sub-agents.md agent frontmatter: name, description, tools,
-                                                disallowedTools
   https://code.claude.com/docs/en/skills.md     skill frontmatter: description, argument-hint,
                                                 $ARGUMENTS
   https://code.claude.com/docs/en/mcp.md        .mcp.json stdio entry
@@ -91,15 +89,10 @@ class InstallError(Exception):
     pass
 
 
-def _split(text: str) -> tuple[dict[str, str], str]:
-    """Split a persona file into its flat front matter and body."""
-    _, head, body = text.split("---\n", 2)
-    meta = dict(line.split(": ", 1) for line in head.splitlines())
-    return meta, body.strip()
-
-
-def _persona(name: str) -> tuple[dict[str, str], str]:
-    return _split(resources.files("deepdive.personas").joinpath(f"{name}.md").read_text("utf-8"))
+def _persona(name: str) -> str:
+    """A persona file's body, without its front matter."""
+    text = resources.files("deepdive.personas").joinpath(f"{name}.md").read_text("utf-8")
+    return text.split("---\n", 2)[2].strip()
 
 
 def _json(data: object) -> str:
@@ -136,15 +129,7 @@ class Workspace:
                 },
             }
         )
-        files["CLAUDE.md"] = f"{_persona('_shared')[1]}\n\n{_persona('guide')[1]}\n"
-        for pid in ("curious", "skeptic", "poc_builder"):
-            meta, body = _persona(pid)
-            name = pid.replace("_", "-") + ("-student" if meta["role"] == "student" else "")
-            tools = ", ".join(f"mcp__deepdive__{t}" for t in meta["tools"].strip("[]").split(", "))
-            files[f".claude/agents/{name}.md"] = (
-                f"---\nname: {name}\ndescription: {meta['description']}\ntools: {tools}\n"
-                f"disallowedTools: WebSearch, WebFetch\n---\n{body}\n"
-            )
+        files["CLAUDE.md"] = f"{_persona('_shared')}\n\n{_persona('guide')}\n"
         for name, (desc, hint, body) in SKILLS.items():
             hint_line = f"argument-hint: {hint}\n" if hint else ""
             files[f".claude/skills/{name}/SKILL.md"] = (
