@@ -48,5 +48,10 @@ class ClaimRepo(IdRepo[Claim]):
         assert claim is not None
         return claim
 
+    def set_status(self, claim_id: UUID, status: ClaimStatus) -> Claim:
+        self.require(claim_id)
+        self.conn.execute("UPDATE claim SET status = ? WHERE id = ?", (status, claim_id))
+        return self.require(claim_id)
+
     def list_for_topic(self, topic_id: UUID) -> list[Claim]:
         return self._many("WHERE topic_id = ? ORDER BY id", (topic_id,))

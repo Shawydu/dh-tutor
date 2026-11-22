@@ -3,7 +3,14 @@ from typing import Any
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import PAGE_SIZE, TITLE_MAX, Id, Page, Title
 from deepdive.ledger.tools._common import Tools
-from deepdive.store.enums import AgendaItemStatus, QuestionStatus, TopicStatus
+from deepdive.store.enums import (
+    AgendaItemStatus,
+    ClaimStatus,
+    DiscoveryEffect,
+    DiscoveryTargetType,
+    QuestionStatus,
+    TopicStatus,
+)
 from deepdive.store.errors import (
     CharterNotFoundError,
     ChildDepthError,
@@ -57,9 +64,9 @@ class TopicTools(Tools):
 
     async def resume_brief(self, topic_id: Id, item: Id | None = None) -> dict[str, Any]:
         """To resume a topic, in the order to present it: where_we_left_off, recap_checks (empty
-        until v2), new_findings (the topic's unread discoveries), next_agenda_item. Pass `item`,
-        a discovery id from the digest, to open it: it is marked read and listed first. Call
-        before session_start."""
+        until v2), new_findings (the topic's best 3 unread discoveries), next_agenda_item. Pass
+        `item`, a discovery id from the digest, to open it (as discovery_open) and list it
+        first. Call before session_start."""
         self.ctx.store.topics.require(topic_id)
         found = self.ctx.store.discoveries
         unread = found.list_unread(topic_id)
@@ -67,7 +74,7 @@ class TopicTools(Tools):
             opened = found.get(item)
             if opened is None or opened.topic_id != topic_id:
                 raise InvalidInputError("item is not a discovery of this topic")
-            found.mark_read(item, self.ctx.now())
+            await self.discovery_open(item)
             unread = [opened, *(d for d in unread if d.id != item)]
         last = self.ctx.store.sessions.latest(topic_id, recorded=True)
         mark = last.bookmark if last else None
@@ -82,8 +89,28 @@ class TopicTools(Tools):
                 "bookmark_note": mark.note if mark else None,
             },
             "recap_checks": [],
-            "new_findings": [found.finding(d).model_dump(mode="json") for d in unread],
+            "new_findings": [found.finding(d).model_dump(mode="json") for d in unread[:3]],
             "next_agenda_item": agenda.model_dump(mode="json") if agenda else None,
+        }
+
+    async def discovery_open(self, discovery_id: Id) -> dict[str, Any]:
+        """The user digs into a finding now: mark it read and, if it weakens a claim, reopen the
+        claim. Returns the finding and the reopened claim (null if none)."""
+        store = self.ctx.store
+        found = store.discoveries.get(discovery_id)
+        if found is None:
+            raise InvalidInputError("no such discovery")
+        with store.db.transaction():
+            store.discoveries.mark_read(discovery_id, self.ctx.now())
+            claim = None
+            if (
+                found.effect == DiscoveryEffect.WEAKENS
+                and found.target_type == DiscoveryTargetType.CLAIM
+            ):
+                claim = store.claims.set_status(found.target_id, ClaimStatus.OPEN)
+        return {
+            "finding": store.discoveries.finding(found).model_dump(mode="json"),
+            "reopened_claim": claim.model_dump(mode="json") if claim else None,
         }
 
     async def topic_pin(self, topic_id: Id, pinned: bool) -> dict[str, Any]:

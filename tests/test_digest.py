@@ -16,7 +16,12 @@ from deepdive.ledger.tools.digest import DigestTools
 from deepdive.ledger.tools.topics import TopicTools
 from deepdive.paths import Paths
 from deepdive.store.db import Database
-from deepdive.store.enums import DiscoveryEffect, DiscoveryTargetType, QuestionEdgeRelation
+from deepdive.store.enums import (
+    ClaimStatus,
+    DiscoveryEffect,
+    DiscoveryTargetType,
+    QuestionEdgeRelation,
+)
 from deepdive.store.errors import DigestNotFoundError
 from deepdive.store.models import Discovery
 from deepdive.store.repos import Store
@@ -123,9 +128,47 @@ def test_resume_with_item_marks_it_read(db: Database, store: Store, seed_topics:
 
     assert ids() == [str(strong.id), str(weak.id)]
     assert ids(item=weak.id) == [str(weak.id), str(strong.id)]
+    assert store.claims.require(seed_topics.claims[0]).status == ClaimStatus.OPEN
     assert ids() == [str(strong.id)]
     with pytest.raises(InvalidInputError):
         ids(item=seed_topics.sources["spec"])
+
+
+def test_resume_lists_the_best_three_findings(
+    db: Database, store: Store, seed_topics: Seed
+) -> None:
+    """Of four unread findings, resume lists the three most relevant, best first."""
+    at = datetime(2026, 1, 1, tzinfo=UTC)
+    topic = seed_topics.topics["iceberg"]
+    run = store.probe_runs.create([topic], at=at)
+    made = []
+    for n, relevance in enumerate([0.5, 0.9, 0.6, 0.8]):
+        source = store.sources.register(
+            url=f"https://example.org/{n}", kind="blog", tier=3, seen_at=at
+        )
+        made.append(store.discoveries.add(
+            run.id, topic, source.id, DiscoveryTargetType.QUESTION,
+            seed_topics.questions["problem"], DiscoveryEffect.ANSWERS, relevance, "A finding.",
+        ))  # fmt: skip
+    brief = asyncio.run(TopicTools(LedgerContext(db, Paths(Path(".")))).resume_brief(topic))
+    assert [f["id"] for f in brief["new_findings"]] == [str(made[i].id) for i in (1, 3, 2)]
+
+
+@pytest.mark.parametrize(
+    ("which", "status"),
+    [(0, ClaimStatus.OPEN), (1, ClaimStatus.ESTABLISHED)],
+    ids=["weakens-reopens", "answers-leaves-claims"],
+)
+def test_opening_a_finding_marks_it_read_and_reopens_a_weakened_claim(
+    db: Database, store: Store, seed_topics: Seed, which: int, status: ClaimStatus
+) -> None:
+    """discovery_open marks the finding read; only a weakening one reopens its claim."""
+    found = _discover(store, seed_topics)[which]
+    got = asyncio.run(TopicTools(LedgerContext(db, Paths(Path(".")))).discovery_open(found.id))
+    opened = store.discoveries.get(found.id)
+    assert opened is not None and opened.read_at is not None
+    assert store.claims.require(seed_topics.claims[0]).status == status
+    assert (got["reopened_claim"] is not None) is (status == ClaimStatus.OPEN)
 
 
 def test_digest_get_truncates_long_markdown(db: Database, tmp_path: Path) -> None:

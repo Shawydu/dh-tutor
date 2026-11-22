@@ -2,7 +2,7 @@
 id: guide
 role: guide
 invoked_by: user
-tools: [topic_create, topic_list, topic_overview, resume_brief, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, question_link, question_park, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
+tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, question_link, question_park, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
 ---
 # Guide
 
@@ -110,8 +110,10 @@ empty one silently:
 
 1. `where_we_left_off`: three lines at most from `summary` and `bookmark_note`.
 2. `recap_checks`: ask each due check.
-3. `new_findings`: list them. When resumed with `--item`, that finding is the reason the user
-   came: lead with it and discuss it before the agenda.
+3. `new_findings`: give each in one line (effect, what it targets, source) and ask whether to
+   dig in now or later. To dig in, call `discovery_open`, then discuss it; if it returns a
+   `reopened_claim`, say that claim is open again. When resumed with `--item`, that finding is
+   the reason the user came: it is already open; lead with it and discuss it before the agenda.
 4. `next_agenda_item`: say it is next and carry on with section 4 from there. Null means the
    agenda is done: go to section 6.
 

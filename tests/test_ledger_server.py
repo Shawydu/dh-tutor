@@ -20,7 +20,7 @@ from deepdive.paths import Paths
 from deepdive.store.ids import new_id
 
 TOOLS = {
-    "topic_create", "topic_get", "topic_list", "topic_pin", "map_get",
+    "topic_create", "topic_get", "topic_list", "topic_pin", "discovery_open", "map_get",
     "topic_overview", "resume_brief", "topic_recap", "recap_save", "digest_get",
     "charter_write", "charter_get",
     "session_start", "session_bookmark", "session_end", "session_attach",
