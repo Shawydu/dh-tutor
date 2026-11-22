@@ -13,6 +13,7 @@ from uuid import UUID
 from deepdive import clock
 from deepdive.classify import Classifier, get_classifier
 from deepdive.config import load_config
+from deepdive.knowledge.store import SqliteKnowledgeStore
 from deepdive.matcher.matcher import Matcher
 from deepdive.paths import Paths
 from deepdive.store.db import Database
@@ -70,7 +71,7 @@ class Hooks:
             attached.append(True)
             config = load_config(self.paths.config)
             classifier = self.classifier or get_classifier(config, live_session=True)
-            result = Matcher(store, classifier, config).match(
+            result = Matcher(store, classifier, config, SqliteKnowledgeStore(db)).match(
                 prompt, session.topic_id, QuestionAsker.USER, session.id
             )
         context = result.render_context()

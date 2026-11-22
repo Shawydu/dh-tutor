@@ -23,6 +23,7 @@ from deepdive.ledger.tools.claims import ClaimTools
 from deepdive.ledger.tools.concepts import ConceptTools
 from deepdive.ledger.tools.digest import DigestTools
 from deepdive.ledger.tools.discoveries import DiscoveryTools
+from deepdive.ledger.tools.grading import GradingTools
 from deepdive.ledger.tools.questions import QuestionTools
 from deepdive.ledger.tools.recaps import RecapTools
 from deepdive.ledger.tools.sessions import SessionTools
@@ -130,7 +131,8 @@ def create_server(
         ClaimTools(ctx).register(server, only={"claim_list", "evidence_list"})
         web.register(server)
         return server
-    matcher = Matcher(ctx.store, classifier or get_classifier(config, live_session=True), config)
+    live = classifier or get_classifier(config, live_session=True)
+    matcher = Matcher(ctx.store, live, config, ctx.knowledge)
     for tools in (
         TopicTools(ctx),
         CharterTools(ctx),
@@ -139,6 +141,7 @@ def create_server(
         ClaimTools(ctx),
         ConceptTools(ctx),
         QuestionTools(ctx, matcher),
+        GradingTools(ctx, config, live),
         RecapTools(ctx),
         DigestTools(ctx, config),
         web,

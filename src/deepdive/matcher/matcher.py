@@ -9,9 +9,15 @@ from pydantic import BaseModel
 from deepdive import clock
 from deepdive.classify import Answer, Choice, Classifier, ClassifyResult, YesNo
 from deepdive.config import Config
+from deepdive.knowledge.store import EVIDENCE_WEIGHT, KnowledgeStore
 from deepdive.matcher.candidates import CandidateFinder
 from deepdive.matcher.embed import Embedder, NullEmbedder
-from deepdive.store.enums import QuestionAsker, QuestionEdgeRelation, QuestionStatus
+from deepdive.store.enums import (
+    KnowledgeEvidenceKind,
+    QuestionAsker,
+    QuestionEdgeRelation,
+    QuestionStatus,
+)
 from deepdive.store.models import Charter, Question
 from deepdive.store.repos import Store
 
@@ -92,12 +98,23 @@ class Matcher:
         store: Store,
         classifier: Classifier,
         config: Config,
+        knowledge: KnowledgeStore,
         embedder: Embedder | None = None,
     ) -> None:
         self.store = store
+        self.knowledge = knowledge
         self.classifier = classifier
         self.threshold = config.classifier.auto_threshold
         self.finder = CandidateFinder(store, embedder or NullEmbedder(), config.matcher.candidates)
+
+    def record_repeat(self, question_id: UUID, repeated_id: UUID, session_id: UUID | None) -> None:
+        """Evidence on the repeated question's concepts that the user asked again; the caller's
+        transaction."""
+        for concept in self.store.concepts.for_question(repeated_id):
+            self.knowledge.add_evidence(
+                concept.id, KnowledgeEvidenceKind.REPEAT_QUESTION, EVIDENCE_WEIGHT, clock.now(),
+                session_id=session_id, question_id=question_id,
+            )  # fmt: skip
 
     def _sure(self, answer: Answer | None) -> str | None:
         """The answer's top option if it reaches the threshold, else None."""
@@ -179,13 +196,16 @@ class Matcher:
                 status=QuestionStatus.PARKED if scope == "outside" else QuestionStatus.OPEN,
             )
             for c, rel, confidence in edges:
+                is_repeat = repeat and rel == Rel.SAME
+                if is_repeat:
+                    self.record_repeat(q.id, c.id, session_id)
                 self.store.edges.add(
                     q.id,
                     c.id,
                     rel,
                     confidence=confidence,
                     classifier=result.provider,
-                    repeat=repeat and rel == Rel.SAME,
+                    repeat=is_repeat,
                     at=clock.now(),
                 )
         return MatchResult(

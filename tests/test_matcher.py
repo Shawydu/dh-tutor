@@ -6,8 +6,10 @@ import pytest
 from conftest import Seed
 from fakes import FakeClassifier
 
+from deepdive import clock
 from deepdive.classify import Answer, Classifier, ClassifyResult, Question
 from deepdive.config import Config
+from deepdive.knowledge.store import SqliteKnowledgeStore
 from deepdive.matcher.matcher import (
     ACTIONS,
     ADJACENT_ACTION,
@@ -47,7 +49,7 @@ def canned(
 
 
 def matcher(store: Store, classifier: Classifier) -> Matcher:
-    return Matcher(store, classifier, Config())
+    return Matcher(store, classifier, Config(), SqliteKnowledgeStore(store.db))
 
 
 def test_unrelated_is_new_with_no_edge(store: Store, seed_topics: Seed) -> None:
@@ -89,6 +91,20 @@ def test_user_repeat_marks_the_edge_and_asks_for_a_new_explanation(
     got = matcher(store, canned(store, Rel.SAME)).match(TEXT, topic, QuestionAsker.USER)
     assert got.question_id and REPEAT_ACTION in got.guidance
     assert all(e.repeat for e in store.edges.list_for_question(got.question_id))
+
+
+def test_user_repeat_adds_evidence_to_the_earlier_questions_concepts(
+    store: Store, seed_topics: Seed
+) -> None:
+    """A user's repeat writes repeat_question evidence on the repeated question's concepts."""
+    topic = seed_topics.topics["python-concurrency"]
+    earlier = store.questions.fts_candidates(TEXT)[0]
+    (concept,) = store.concepts.tag_question(earlier.id, ["GIL"], clock.now())
+    got = matcher(store, canned(store, Rel.SAME)).match(TEXT, topic, QuestionAsker.USER)
+    (row,) = SqliteKnowledgeStore(store.db).list_evidence(concept.id)
+    assert (row.kind, row.question_id, row.grade, row.weight) == (
+        "repeat_question", got.question_id, None, 1.0,
+    )  # fmt: skip
 
 
 def test_not_a_question_stores_nothing(store: Store, seed_topics: Seed) -> None:
@@ -167,7 +183,9 @@ def test_unsure_gate_stores_nothing(
             return ClassifyResult(answers=answers, provider="jev", needs_judgement=not answers)
 
     before = store.db.conn.execute("SELECT COUNT(*) FROM question").fetchone()[0]
-    got = Matcher(store, Gate(), Config()).match(TEXT, topic, QuestionAsker.USER)
+    got = Matcher(store, Gate(), Config(), SqliteKnowledgeStore(store.db)).match(
+        TEXT, topic, QuestionAsker.USER
+    )
     assert (got.kind, got.question_id, got.needs_judgement) == ("unsure", None, True)
     assert "question_record" in got.guidance[0]
     assert store.db.conn.execute("SELECT COUNT(*) FROM question").fetchone()[0] == before

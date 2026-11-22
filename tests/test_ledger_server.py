@@ -15,9 +15,12 @@ from mcp.client.stdio import StdioServerParameters
 
 from deepdive import clock
 from deepdive.classify import Answer, ClassifyResult, Question
+from deepdive.knowledge.store import SqliteKnowledgeStore
 from deepdive.ledger.server import LedgerServer, create_server
 from deepdive.paths import Paths
+from deepdive.store.db import Database
 from deepdive.store.ids import new_id
+from deepdive.store.repos import Store
 
 TOOLS = {
     "topic_create", "topic_get", "topic_list", "topic_pin", "discovery_open", "map_get",
@@ -28,6 +31,7 @@ TOOLS = {
     "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
     "concept_tag", "concept_list", "concept_merge",
     "question_get", "question_answer", "parked_list",
+    "rubric_write", "answer_grade", "answer_grade_set",
     "question_record", "question_park", "parked_search", "question_submit", "question_link",
     "child_topic_create", "child_topic_finish", "frontier_add",
     "search", "fetch",
@@ -695,6 +699,27 @@ def test_question_submit_and_link_validation(tmp_path: Path) -> None:
         "question_link", session_id=sid, from_id=a["id"], to_id=b["id"], relation="same"
     )
     assert ok["repeat"] is True
+
+
+def test_question_link_repeat_adds_evidence_once(tmp_path: Path) -> None:
+    """Linking a user's question as `same` writes repeat evidence on the earlier question's
+    concepts; linking the same pair again adds nothing."""
+    ledger = _submit_ledger(tmp_path)
+    tid, sid = _session(ledger)
+    earlier = ledger.call(
+        "question_record", session_id=sid, topic_id=tid, asker="user", text="a?", concepts=["GIL"]
+    )
+    again = ledger.call("question_record", session_id=sid, topic_id=tid, asker="user", text="b?")
+    for _ in range(2):
+        ledger.call(
+            "question_link", session_id=sid, from_id=again["id"], to_id=earlier["id"],
+            relation="same",
+        )  # fmt: skip
+    assert ledger.count("knowledge_evidence WHERE kind = 'repeat_question'") == 1
+    with Database(ledger.paths.db) as db:
+        (gil,) = Store(db).concepts.for_question(earlier["id"])
+        (row,) = SqliteKnowledgeStore(db).list_evidence(gil.id)
+    assert str(row.question_id) == again["id"]
 
 
 def test_session_attach_links_and_reattaches(ledger: Ledger) -> None:

@@ -146,6 +146,16 @@ class Concept(BaseModel):
     parent_concept_id: UUID | None
 
 
+class Rubric(BaseModel):
+    """What a good answer to a student question covers and the mistakes to watch for."""
+
+    question_id: UUID
+    key_points: list[str]
+    misconceptions: list[str]
+
+    _decode = field_validator("key_points", "misconceptions", mode="before")(_from_json)
+
+
 class ConceptLink(BaseModel):
     """Two questions in different topics tagged with the same concept."""
 

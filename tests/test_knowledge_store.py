@@ -61,9 +61,9 @@ def test_add_evidence_returns_the_stored_row(knowledge: KnowledgeStore, store: S
         grade=KnowledgeEvidenceGrade.CORRECT, grader="fake", grader_confidence=0.9,
     )  # fmt: skip
     assert (got.concept_id, got.grade, got.created_at) == (a, KnowledgeEvidenceGrade.CORRECT, AT)
-    assert (
-        got.id != knowledge.add_evidence(a, KnowledgeEvidenceKind.SELF_RATING, 0.3, AT, level=2).id
-    )
+    other = knowledge.add_evidence(a, KnowledgeEvidenceKind.SELF_RATING, 0.3, AT, level=2)
+    assert got.id != other.id
+    assert knowledge.list_evidence(a) == [got, other]
 
 
 @pytest.mark.parametrize("keep_has_state", [True, False], ids=["keep-wins", "drop-moves"])

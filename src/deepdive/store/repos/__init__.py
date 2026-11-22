@@ -10,6 +10,7 @@ from deepdive.store.repos.evidence import EvidenceRepo
 from deepdive.store.repos.frontier import FrontierRepo
 from deepdive.store.repos.probe_runs import ProbeRunRepo
 from deepdive.store.repos.questions import QuestionRepo
+from deepdive.store.repos.rubrics import RubricRepo
 from deepdive.store.repos.sessions import SessionRepo
 from deepdive.store.repos.sources import SourceRepo
 from deepdive.store.repos.topics import TopicRepo
@@ -30,6 +31,7 @@ class Store:
         self.sources = SourceRepo(db)
         self.claims = ClaimRepo(db)
         self.concepts = ConceptRepo(db)
+        self.rubrics = RubricRepo(db)
         self.evidence = EvidenceRepo(db)
         self.frontier = FrontierRepo(db)
         self.probe_runs = ProbeRunRepo(db)

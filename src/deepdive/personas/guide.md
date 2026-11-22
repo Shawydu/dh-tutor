@@ -2,7 +2,7 @@
 id: guide
 role: guide
 invoked_by: user
-tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, question_park, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
+tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
 ---
 # Guide
 
@@ -84,6 +84,12 @@ question, call `question_record` (their words as `text`, asker `user`). Then act
 - clashes with an earlier claim: reopen it with the user, re-check it, and if it was too strong
   add a weakening piece of evidence with `claim_add`.
 - adjacent or outside the charter: as below.
+
+Student questions (asker `curious` or `skeptic`) that you accept and tag are put to the user:
+first call `rubric_write` (`key_points` a good answer covers, `misconceptions` to watch for),
+then ask. When the user answers, call `answer_grade` with their answer. If it returns
+`needs_judgement`, grade it yourself against the rubric and call `answer_grade_set` (grade
+wrong, partial, correct or insightful, and your confidence).
 
 If it is in scope, answer it in the walkthrough. If it is next to the charter's scope,
 offer exactly two choices and wait:

@@ -68,6 +68,14 @@ class ConceptRepo(IdRepo[Concept]):
         )
         return concepts
 
+    def for_question(self, question_id: UUID) -> list[Concept]:
+        """The question's concept tags, by name."""
+        return self._many(
+            "WHERE id IN (SELECT concept_id FROM question_concept WHERE question_id = ?)"
+            " ORDER BY name",
+            (question_id,),
+        )
+
     def list_all(self, topic_id: UUID | None = None) -> list[Concept]:
         """Every concept by name, or those tagged on a question or claim of the topic."""
         if topic_id is None:

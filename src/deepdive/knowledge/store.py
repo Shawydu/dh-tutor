@@ -10,6 +10,8 @@ from deepdive.store.db import Database
 from deepdive.store.enums import KnowledgeEvidenceGrade, KnowledgeEvidenceKind
 from deepdive.store.ids import new_id
 
+EVIDENCE_WEIGHT = 1.0  # every evidence row counts the same until V2-03 tunes it
+
 
 class KnowledgeState(BaseModel):
     concept_id: UUID
@@ -55,6 +57,10 @@ class KnowledgeStore(Protocol):
         session_id: UUID | None = None,
         question_id: UUID | None = None,
     ) -> KnowledgeEvidence: ...
+
+    def list_evidence(self, concept_id: UUID) -> list[KnowledgeEvidence]:
+        """The concept's evidence, oldest first."""
+        ...
 
     def list_due(self, now: datetime) -> list[KnowledgeState]:
         """States whose next recap is at or before `now`, most overdue first."""
@@ -108,6 +114,15 @@ class SqliteKnowledgeStore:
         marks = ", ".join("?" * len(values))
         self.conn.execute(f"INSERT INTO knowledge_evidence ({_EVIDENCE}) VALUES ({marks})", values)
         return row
+
+    def list_evidence(self, concept_id: UUID) -> list[KnowledgeEvidence]:
+        rows = self.conn.execute(
+            f"SELECT {_EVIDENCE} FROM knowledge_evidence WHERE concept_id = ?"
+            " ORDER BY created_at, id",
+            (concept_id,),
+        )
+        fields = KnowledgeEvidence.model_fields
+        return [KnowledgeEvidence.model_validate(dict(zip(fields, r, strict=True))) for r in rows]
 
     def list_due(self, now: datetime) -> list[KnowledgeState]:
         return self._states("WHERE next_recap_at <= ? ORDER BY next_recap_at, concept_id", (now,))

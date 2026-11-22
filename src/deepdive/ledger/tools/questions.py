@@ -78,9 +78,17 @@ class QuestionTools(Tools):
         if {origin.topic_id, target.topic_id} != {topic_id}:
             raise InvalidInputError("both questions must belong to the session's topic")
         repeat = relation == QuestionEdgeRelation.SAME and origin.asker == QuestionAsker.USER
-        return self.ctx.store.edges.add(
-            from_id, to_id, relation, classifier="guide", repeat=repeat, at=self.ctx.now()
-        ).model_dump(mode="json")
+        store = self.ctx.store
+        with store.db.transaction():
+            was_repeat = any(
+                e.repeat for e in store.edges.list_for_question(from_id) if e.to_id == to_id
+            )
+            edge = store.edges.add(
+                from_id, to_id, relation, classifier="guide", repeat=repeat, at=self.ctx.now()
+            )
+            if repeat and not was_repeat:
+                self.matcher.record_repeat(from_id, to_id, session_id)
+        return edge.model_dump(mode="json")
 
     async def question_park(self, session_id: Id, question_id: Id) -> dict[str, Any]:
         """Park a question: it leaves the walkthrough and can be found again with parked_list."""
