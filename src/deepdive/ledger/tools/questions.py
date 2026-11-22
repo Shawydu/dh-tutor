@@ -77,7 +77,10 @@ class QuestionTools(Tools):
         assert origin is not None and target is not None
         if {origin.topic_id, target.topic_id} != {topic_id}:
             raise InvalidInputError("both questions must belong to the session's topic")
-        repeat = relation == QuestionEdgeRelation.SAME and origin.asker == QuestionAsker.USER
+        repeat = (
+            relation == QuestionEdgeRelation.SAME
+            and origin.asker == target.asker == QuestionAsker.USER
+        )
         store = self.ctx.store
         with store.db.transaction():
             was_repeat = any(

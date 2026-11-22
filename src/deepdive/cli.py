@@ -269,6 +269,7 @@ def digest_build(
     """Write the digest file for a day and print its path."""
     from deepdive import clock
     from deepdive.digest.build import DigestBuilder
+    from deepdive.knowledge.store import SqliteKnowledgeStore
     from deepdive.store.repos import Store
 
     paths = Paths.from_env()
@@ -282,7 +283,11 @@ def digest_build(
         typer.echo(str(err), err=True)
         raise typer.Exit(1) from err
     with Database(paths.db) as db:
-        typer.echo(DigestBuilder(Store(db), config.digest.folder(paths.digests)).write(when))
+        typer.echo(
+            DigestBuilder(
+                Store(db), SqliteKnowledgeStore(db), config.digest.folder(paths.digests)
+            ).write(when)
+        )
 
 
 @knowledge_app.command("simulate")

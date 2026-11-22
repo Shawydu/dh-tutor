@@ -35,6 +35,7 @@ Note = Annotated[str, Field(max_length=NOTE_MAX)]
 Items = Annotated[list[Title], Field(max_length=LIST_MAX)]
 Facets = Annotated[list[Title], Field(min_length=1, max_length=LIST_MAX)]
 Confidence = Annotated[float, Field(ge=0, le=1)]
+Level = Annotated[int, Field(ge=0, le=4)]  # a self-rated knowledge level, as in knowledge.update
 SourceIds = Annotated[list[Id], Field(min_length=1, max_length=LIST_MAX)]
 Tier = Annotated[int, Field(ge=1, le=TIER_MAX)]
 Kind = Annotated[str, Field(min_length=1, max_length=KIND_MAX)]

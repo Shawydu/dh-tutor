@@ -9,6 +9,7 @@ from conftest import Seed
 
 from deepdive.config import Config, DigestConfig
 from deepdive.digest.build import NOTHING_NEW, DigestBuilder
+from deepdive.knowledge.store import KnowledgeState, SqliteKnowledgeStore
 from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import MARKDOWN_MAX
@@ -73,12 +74,12 @@ def test_digest_snapshot(store: Store, seed_topics: Seed, tmp_path: Path) -> Non
 - {topic}: "{store.questions.require(seed_topics.questions["commit_concurrent"]).clean_text}" ↔ Concurrency control in Python vs parallelism: "{store.questions.require(seed_topics.questions["locks_needed"]).clean_text}" (aspect)
 - {topic}: "{store.questions.require(seed_topics.questions["commit_concurrent"]).clean_text}" ↔ Concurrency control in Python vs parallelism: "{store.questions.require(seed_topics.questions["locks_needed"]).clean_text}" (concept: occ)
 """  # noqa: E501
-    assert DigestBuilder(store, tmp_path).build(DAY) == expected
+    assert DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path).build(DAY) == expected
 
 
 def test_empty_day_says_nothing_new(store: Store, tmp_path: Path) -> None:
     """No unread discoveries and no new edges give the short digest."""
-    builder = DigestBuilder(store, tmp_path)
+    builder = DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path)
     assert builder.build(DAY) == f"# Digest — 2026-01-02\n\n{NOTHING_NEW}\n"
 
 
@@ -90,9 +91,13 @@ def test_read_discoveries_and_old_edges_drop_out(
     for d in (weak, strong):
         store.discoveries.mark_read(d.id, datetime(2026, 1, 1, tzinfo=UTC))
     (tmp_path / "2026-01-01.md").write_text("x")  # the edge was made 2026-01-01 06:00, so new
-    assert "Connections across topics" in DigestBuilder(store, tmp_path).build(DAY)
+    assert "Connections across topics" in DigestBuilder(
+        store, SqliteKnowledgeStore(store.db), tmp_path
+    ).build(DAY)
     (tmp_path / "2026-01-02.md").write_text("x")
-    assert NOTHING_NEW in DigestBuilder(store, tmp_path).build(date(2026, 1, 3))
+    assert NOTHING_NEW in DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path).build(
+        date(2026, 1, 3)
+    )
 
 
 @pytest.mark.parametrize(
@@ -106,7 +111,10 @@ def test_unread_findings_older_than_the_last_digest_drop_out(
     if earlier:
         (tmp_path / f"{earlier}.md").write_text("x")
     (tmp_path / "notes.md").write_text("x")  # not a digest file: ignored
-    assert ("## Apache Iceberg" in DigestBuilder(store, tmp_path).build(date(2026, 1, 3))) is listed
+    assert (
+        "## Apache Iceberg"
+        in DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path).build(date(2026, 1, 3))
+    ) is listed
 
 
 @pytest.mark.parametrize(("earlier", "listed"), [(None, True), ("2026-01-02", False)])
@@ -118,7 +126,7 @@ def test_edge_without_a_time_is_new_only_with_no_earlier_digest(
     store.edges.add(q["problem"], q["gil"], QuestionEdgeRelation.NARROWER)
     if earlier:
         (tmp_path / f"{earlier}.md").write_text("x")
-    text = DigestBuilder(store, tmp_path).build(date(2026, 1, 3))
+    text = DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path).build(date(2026, 1, 3))
     assert ("(narrower)" in text) is listed
 
 
@@ -192,7 +200,7 @@ def test_digest_get_found_or_not_found(db: Database, tmp_path: Path, built: bool
     paths = Paths(tmp_path)
     tools = DigestTools(LedgerContext(db, paths), Config())
     if built:
-        DigestBuilder(Store(db), paths.digests).write(DAY)
+        DigestBuilder(Store(db), SqliteKnowledgeStore(db), paths.digests).write(DAY)
         got = asyncio.run(tools.digest_get(DAY))
         assert got["markdown"].startswith("# Digest — 2026-01-02") and not got["truncated"]
     else:
@@ -220,6 +228,27 @@ def test_digest_renders_an_agenda_item_finding(
         run.id, topic, src.id, DiscoveryTargetType.AGENDA_ITEM, item.id,
         DiscoveryEffect.SUPPORTS, 0.9, "It covers this. It matters.",
     )  # fmt: skip
-    out = DigestBuilder(store, tmp_path).build(DAY)
+    out = DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path).build(DAY)
     assert f'Why it matters: agenda item "{item.facet}".' in out
     assert "**supports** agenda item:" in out
+
+
+def test_recaps_due_lists_concepts_due_by_the_end_of_the_day(
+    store: Store, db: Database, tmp_path: Path
+) -> None:
+    """The digest's Recaps due section names each due concept with level and confidence."""
+    with store.db.transaction():
+        due, later = store.concepts.ensure(["GIL", "locks"])
+        for concept, day in ((due, 2), (later, 3)):
+            SqliteKnowledgeStore(db).set_state(
+                KnowledgeState(
+                    concept_id=concept.id,
+                    level=3,
+                    confidence=0.4,
+                    stability=0,
+                    last_evidence_at=None,
+                    next_recap_at=datetime(2026, 1, day, 9, tzinfo=UTC),
+                )  # fmt: skip
+            )
+    out = DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path).build(DAY)
+    assert out == "# Digest — 2026-01-02\n\n## Recaps due\n\n- gil (level 3.0, confidence 0.4)\n"

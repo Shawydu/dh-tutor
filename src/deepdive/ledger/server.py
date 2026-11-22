@@ -24,6 +24,7 @@ from deepdive.ledger.tools.concepts import ConceptTools
 from deepdive.ledger.tools.digest import DigestTools
 from deepdive.ledger.tools.discoveries import DiscoveryTools
 from deepdive.ledger.tools.grading import GradingTools
+from deepdive.ledger.tools.knowledge import KnowledgeTools
 from deepdive.ledger.tools.questions import QuestionTools
 from deepdive.ledger.tools.recaps import RecapTools
 from deepdive.ledger.tools.sessions import SessionTools
@@ -142,6 +143,7 @@ def create_server(
         ConceptTools(ctx),
         QuestionTools(ctx, matcher),
         GradingTools(ctx, config, live),
+        KnowledgeTools(ctx),
         RecapTools(ctx),
         DigestTools(ctx, config),
         web,

@@ -30,7 +30,7 @@ TOOLS = {
     "session_student_mode_set",
     "agenda_set", "agenda_next", "agenda_done",
     "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
-    "concept_tag", "concept_list", "concept_merge",
+    "concept_tag", "concept_list", "concept_merge", "knowledge_view", "self_rate",
     "question_get", "question_answer", "parked_list",
     "rubric_write", "answer_grade", "answer_grade_set",
     "question_record", "question_park", "parked_search", "question_submit", "question_link",

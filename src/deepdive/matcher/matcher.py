@@ -170,14 +170,15 @@ class Matcher:
             elif relation != Rel.UNRELATED:
                 assert answer is not None
                 edges.append((c, Rel(relation), answer.top[1]))
-        same = any(rel == Rel.SAME for _, rel, _ in edges)
         if asker in STUDENTS and any(
             rel == Rel.SAME and c.topic_id == topic_id for c, rel, _ in edges
         ):
             return MatchResult(kind="duplicate", related=self._related(edges, []))
 
         scope = self._sure(result.answers.get("scope")) if charter else None
-        repeat = same and asker == QuestionAsker.USER
+        # a repeat is the user asking again what they asked before, not what the guide asked
+        repeats = {c.id for c, rel, _ in edges if rel == Rel.SAME and c.asker == QuestionAsker.USER}
+        repeat = asker == QuestionAsker.USER and bool(repeats)
         guidance = [ACTIONS[rel] for rel in dict.fromkeys(r for _, r, _ in edges)]
         if repeat:
             guidance.append(REPEAT_ACTION)
@@ -197,7 +198,7 @@ class Matcher:
                 status=QuestionStatus.PARKED if scope == "outside" else QuestionStatus.OPEN,
             )
             for c, rel, confidence in edges:
-                is_repeat = repeat and rel == Rel.SAME
+                is_repeat = repeat and c.id in repeats
                 if is_repeat:
                     self.record_repeat(q.id, c.id, session_id)
                 self.store.edges.add(

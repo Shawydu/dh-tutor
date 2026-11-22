@@ -8,12 +8,15 @@ from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Confidence, Facets, Id, Items, Summary
 from deepdive.ledger.tools._common import Tools
 from deepdive.matcher.matcher import STUDENTS
-from deepdive.store.enums import KnowledgeEvidenceGrade, KnowledgeEvidenceKind
+from deepdive.store.enums import KnowledgeEvidenceGrade, KnowledgeEvidenceKind, QuestionAsker
 from deepdive.store.models import Concept, Question, Rubric
+
+GRADED_KINDS = {KnowledgeEvidenceKind.ANSWERED_STUDENT_Q, KnowledgeEvidenceKind.RECAP_CHECK}
 
 
 class GradingTools(Tools):
-    """A student question's rubric, and the user's answer to it graded into knowledge evidence."""
+    """A student or recap question's rubric, and the user's answer to it graded into knowledge
+    evidence."""
 
     def __init__(self, ctx: LedgerContext, config: Config, classifier: Classifier) -> None:
         super().__init__(ctx)
@@ -23,20 +26,22 @@ class GradingTools(Tools):
     async def rubric_write(
         self, question_id: Id, key_points: Facets, misconceptions: Items
     ) -> dict[str, Any]:
-        """Write the rubric of an accepted student question (asker curious or skeptic): the key
-        points a good answer covers and the misconceptions to watch for. Do it before putting the
-        question to the user. A later call replaces it."""
+        """Write the rubric of an accepted student question (asker curious or skeptic) or of your
+        own recap question (asker guide): the key points a good answer covers and the
+        misconceptions to watch for. Do it before putting the question to the user. A later call
+        replaces it."""
         question = self.ctx.store.questions.require(question_id)
-        if question.asker not in STUDENTS:
-            raise InvalidInputError("only a student question (curious or skeptic) has a rubric")
+        if question.asker not in STUDENTS | {QuestionAsker.GUIDE}:
+            raise InvalidInputError("only a student or guide question has a rubric")
         rubric = self.ctx.store.rubrics.write(question_id, key_points, misconceptions)
         return rubric.model_dump(mode="json")
 
     async def answer_grade(
         self, question_id: Id, answer_text: Summary, session_id: Id
     ) -> dict[str, Any]:
-        """Grade the user's answer to a student question against its rubric and store the grade as
-        evidence on each of the question's concepts. Needs a rubric and concept_tag first.
+        """Grade the user's answer to a student or recap question against its rubric and store the
+        grade as evidence on each of the question's concepts (a recap_check for a guide question).
+        Needs a rubric and concept_tag first.
 
         Below the confidence threshold (or with the classifier down) nothing is stored: you get
         {"needs_judgement": true, rubric, guess}; grade it yourself with answer_grade_set.
@@ -97,7 +102,7 @@ class GradingTools(Tools):
     def _refuse_regrade(self, question_id: Id, concepts: list[Concept]) -> None:
         # all concepts, not the first: tags added after a grade would hide it
         if any(
-            e.question_id == question_id and e.kind == KnowledgeEvidenceKind.ANSWERED_STUDENT_Q
+            e.question_id == question_id and e.kind in GRADED_KINDS
             for c in concepts
             for e in self.ctx.knowledge.list_evidence(c.id)
         ):
@@ -113,11 +118,16 @@ class GradingTools(Tools):
         grader: str,
     ) -> dict[str, Any]:
         at = self.ctx.now()
+        kind = (
+            KnowledgeEvidenceKind.RECAP_CHECK
+            if question.asker == QuestionAsker.GUIDE
+            else KnowledgeEvidenceKind.ANSWERED_STUDENT_Q
+        )
         with self.ctx.store.db.transaction():
             self._refuse_regrade(question.id, concepts)
             for concept in concepts:
                 record(
-                    self.ctx.knowledge, concept.id, KnowledgeEvidenceKind.ANSWERED_STUDENT_Q, at,
+                    self.ctx.knowledge, concept.id, kind, at,
                     grade=grade, grader=grader, grader_confidence=confidence,
                     session_id=session_id, question_id=question.id,
                 )  # fmt: skip

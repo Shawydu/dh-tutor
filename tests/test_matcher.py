@@ -90,23 +90,35 @@ def test_user_repeat_marks_the_edge_and_asks_for_a_new_explanation(
     topic = seed_topics.topics["python-concurrency"]
     got = matcher(store, canned(store, Rel.SAME)).match(TEXT, topic, QuestionAsker.USER)
     assert got.question_id and REPEAT_ACTION in got.guidance
-    assert all(e.repeat for e in store.edges.list_for_question(got.question_id))
+    edges = store.edges.list_for_question(got.question_id)
+    assert edges and all(
+        e.repeat == (store.questions.require(e.to_id).asker == QuestionAsker.USER) for e in edges
+    )
 
 
+@pytest.mark.parametrize(
+    ("earlier_asker", "evidence"),
+    [(QuestionAsker.USER, 1), (QuestionAsker.GUIDE, 0)],
+    ids=["user-asked-earlier", "guide-asked-earlier"],
+)
 def test_user_repeat_adds_evidence_to_the_earlier_questions_concepts(
-    store: Store, seed_topics: Seed
+    store: Store, seed_topics: Seed, earlier_asker: QuestionAsker, evidence: int
 ) -> None:
-    """A user's repeat writes repeat_question evidence on the repeated question's concepts."""
+    """A user repeating their own question writes repeat_question evidence; the guide's, none."""
     topic = seed_topics.topics["python-concurrency"]
     earlier = store.questions.fts_candidates(TEXT)[0]
+    store.db.conn.execute("UPDATE question SET asker = ? WHERE id = ?", (earlier_asker, earlier.id))
     (concept,) = store.concepts.tag_question(earlier.id, ["GIL"], clock.now())
     got = matcher(store, canned(store, Rel.SAME)).match(TEXT, topic, QuestionAsker.USER)
-    (row,) = SqliteKnowledgeStore(store.db).list_evidence(concept.id)
-    assert (row.kind, row.question_id, row.grade, row.weight) == (
-        "repeat_question", got.question_id, None, 1.0,
-    )  # fmt: skip
-    state = SqliteKnowledgeStore(store.db).get_state(concept.id)
-    assert state is not None and state.level == 1
+    rows = SqliteKnowledgeStore(store.db).list_evidence(concept.id)
+    assert len(rows) == evidence
+    if evidence:
+        (row,) = rows
+        assert (row.kind, row.question_id, row.grade, row.weight) == (
+            "repeat_question", got.question_id, None, 1.0,
+        )  # fmt: skip
+        state = SqliteKnowledgeStore(store.db).get_state(concept.id)
+        assert state is not None and state.level == 1
 
 
 def test_not_a_question_stores_nothing(store: Store, seed_topics: Seed) -> None:

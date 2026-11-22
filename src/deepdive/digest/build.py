@@ -1,10 +1,11 @@
 """The morning digest: unread discoveries by topic and new cross-topic connections, as markdown."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from itertools import groupby
 from pathlib import Path
 from urllib.parse import urlparse
 
+from deepdive.knowledge.store import KnowledgeStore
 from deepdive.store.enums import DiscoveryTargetType
 from deepdive.store.repos import Store
 
@@ -16,8 +17,9 @@ def _one_line(text: str) -> str:
 
 
 class DigestBuilder:
-    def __init__(self, store: Store, folder: Path) -> None:
+    def __init__(self, store: Store, knowledge: KnowledgeStore, folder: Path) -> None:
         self.store = store
+        self.knowledge = knowledge
         self.folder = folder
 
     def path(self, day: date) -> Path:
@@ -89,7 +91,16 @@ class DigestBuilder:
             )
         if pairs:
             lines += ["## Connections across topics", "", *sorted(pairs), ""]
-        if not findings and not pairs:
+        # shortcut: end of the UTC day, not the local day; use a configured timezone if any
+        end = datetime.combine(day, time.max, UTC)
+        due = self.knowledge.list_due(end)
+        if due:
+            rows = [
+                f"- {self.store.concepts.require(s.concept_id).name}"
+                f" (level {s.level:.1f}, confidence {s.confidence:.1f})"
+                for s in due
+            ]
+            lines += ["## Recaps due", "", *rows, ""]
+        if not findings and not pairs and not due:
             lines += [NOTHING_NEW, ""]
-        # Recaps due: omitted until v2 adds recap scheduling
         return "\n".join(lines)

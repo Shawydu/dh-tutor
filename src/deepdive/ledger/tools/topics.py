@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import PAGE_SIZE, TITLE_MAX, Id, Page, Title
@@ -63,8 +64,9 @@ class TopicTools(Tools):
         return {"topics": shown, "page": page, "pages": pages, "total": len(rows)}
 
     async def resume_brief(self, topic_id: Id, item: Id | None = None) -> dict[str, Any]:
-        """To resume a topic, in the order to present it: where_we_left_off, recap_checks (empty
-        until v2), new_findings (the topic's best 3 unread discoveries), next_agenda_item. Pass
+        """To resume a topic, in the order to present it: where_we_left_off, recap_checks (up to
+        two concepts of the topic due for a recap: ask each, see the guide's Resuming), new_findings
+        (the topic's best 3 unread discoveries), next_agenda_item. Pass
         `item`, a discovery id from the digest, to open it (as discovery_open) and list it
         first. Call before session_start."""
         self.ctx.store.topics.require(topic_id)
@@ -88,10 +90,20 @@ class TopicTools(Tools):
                 "summary": last.summary if last else None,
                 "bookmark_note": mark.note if mark else None,
             },
-            "recap_checks": [],
+            "recap_checks": self._due_recaps(topic_id),
             "new_findings": [found.finding(d).model_dump(mode="json") for d in unread[:3]],
             "next_agenda_item": agenda.model_dump(mode="json") if agenda else None,
         }
+
+    def _due_recaps(self, topic_id: UUID) -> list[dict[str, Any]]:
+        """Up to two of the topic's concepts that are due, most overdue first."""
+        names = {c.id: c.name for c in self.ctx.store.concepts.list_all(topic_id)}
+        due = [s for s in self.ctx.knowledge.list_due(self.ctx.now()) if s.concept_id in names]
+        return [
+            {"concept": names[s.concept_id], "level": round(s.level, 1)}
+            | {"confidence": round(s.confidence, 2)}
+            for s in due[:2]
+        ]
 
     async def discovery_open(self, discovery_id: Id) -> dict[str, Any]:
         """The user digs into a finding now: mark it read and, if it weakens a claim, reopen the

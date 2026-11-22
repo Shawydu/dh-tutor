@@ -61,6 +61,15 @@ SKILLS = {
         "(one of curious, skeptic, both, off; ask which if it is none of these, or if no "
         "session is open). Confirm the mode in one line.",
     ),
+    "knowledge": (
+        "Show what the system thinks you know, and correct it",
+        "[topic]",
+        "Call `knowledge_view` (with `topic_id` when $ARGUMENTS names a topic; find it with "
+        "`topic_list`) and show a compact table: concept, level 0-4, confidence, next recap. "
+        "When the user corrects a level, call `self_rate` with the concept name and the new level "
+        "and show the result with `knowledge_view` called without a topic (a self-rated concept "
+        "belongs to no topic, so a topic view hides it).",
+    ),
     "digest": (
         "Show today's morning digest",
         "[YYYY-MM-DD]",

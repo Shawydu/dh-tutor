@@ -12,7 +12,9 @@ from deepdive.store.errors import DigestNotFoundError
 class DigestTools(Tools):
     def __init__(self, ctx: LedgerContext, config: Config) -> None:
         super().__init__(ctx)
-        self.digests = DigestBuilder(ctx.store, config.digest.folder(ctx.paths.digests))
+        self.digests = DigestBuilder(
+            ctx.store, ctx.knowledge, config.digest.folder(ctx.paths.digests)
+        )
 
     async def digest_get(self, date: date | None = None) -> dict[str, Any]:
         """The morning digest for `date` (default today, UTC) as markdown, or `not_found` when

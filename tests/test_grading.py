@@ -128,11 +128,10 @@ def test_grading_guards(tmp_path: Path, tool: str, setup: Any) -> None:
     assert ledger.count("knowledge_evidence") == before
 
 
-@pytest.mark.parametrize("asker", ["user", "guide"])
-def test_rubric_is_for_student_questions_only(tmp_path: Path, asker: str) -> None:
-    """rubric_write refuses a question that is not a student's."""
+def test_rubric_is_for_student_and_guide_questions_only(tmp_path: Path) -> None:
+    """rubric_write refuses a question the user asked."""
     ledger = _ledger(tmp_path)
-    _, _, qid = _question(ledger, asker)
+    _, _, qid = _question(ledger, "user")
     got = ledger.call("rubric_write", question_id=qid, key_points=KEY_POINTS, misconceptions=[])
     assert got["error"] == "invalid_input"
 
@@ -147,3 +146,17 @@ def test_a_grade_updates_each_concepts_state(tmp_path: Path) -> None:
     with Database(ledger.paths.db) as db:
         states = [SqliteKnowledgeStore(db).get_state(c.id) for c in Store(db).concepts.list_all()]
     assert all(s and s.level == pytest.approx(3) and s.next_recap_at for s in states)
+
+
+def test_a_guide_question_is_graded_as_a_recap_check(tmp_path: Path) -> None:
+    """A guide-asked (recap) question gets a rubric and its grade is stored as recap_check."""
+    ledger = _ledger(tmp_path)
+    _, sid, qid = _question(ledger, "guide")
+    ledger.call("rubric_write", question_id=qid, key_points=KEY_POINTS, misconceptions=[])
+    got = ledger.call("answer_grade", question_id=qid, answer_text="one at a time", session_id=sid)
+    assert got["grade"] == "correct"
+    assert {r.kind for (r,) in _evidence(ledger).values()} == {"recap_check"}
+    again = ledger.call(
+        "answer_grade_set", question_id=qid, grade="wrong", confidence=1, session_id=sid
+    )
+    assert again["error"] == "invalid_input"

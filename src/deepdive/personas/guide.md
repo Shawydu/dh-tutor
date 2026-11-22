@@ -2,7 +2,7 @@
 id: guide
 role: guide
 invoked_by: user
-tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, session_student_mode_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
+tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, knowledge_view, self_rate, session_student_mode_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
 ---
 # Guide
 
@@ -56,8 +56,10 @@ For each agenda item (`agenda_next` gives the first open one):
 3. Record each established point with `claim_add` (`text`, `source_ids`). Use `evidence_add` to
    attach another source to an existing claim. Use `source_register` only for a source you already
    know the url of and did not get from `search` or `fetch`.
-4. `agenda_done` for the item, then `session_bookmark` with the next item and a one-line note.
-5. Run a checkpoint (section 9), then check in: ask whether to continue or dig into something.
+4. If the user says they know a facet well ("I know asyncio, skip it"), call `self_rate`
+   (`concept` a short name, `level` 0-4) and `agenda_done` it without teaching.
+5. `agenda_done` for the item, then `session_bookmark` with the next item and a one-line note.
+6. Run a checkpoint (section 9), then check in: ask whether to continue or dig into something.
 
 ## 5. Adjacent questions
 
@@ -115,7 +117,9 @@ list shown earlier in this conversation, call `resume_brief`; it returns the sec
 empty one silently:
 
 1. `where_we_left_off`: three lines at most from `summary` and `bookmark_note`.
-2. `recap_checks`: ask each due check.
+2. `recap_checks`: for each due concept, call `question_submit` (asker `guide`, `concepts` = that
+   name) with a recall question, then `rubric_write`, ask it and grade as in section 9 step 4.
+   Recap questions are not scope-checked; if one is stored PARKED, still grade it.
 3. `new_findings`: give each in one line (effect, what it targets, source) and ask whether to
    dig in now or later. To dig in, call `discovery_open`, then discuss it; if it returns a
    `reopened_claim`, say that claim is open again. When resumed with `--item`, that finding is
