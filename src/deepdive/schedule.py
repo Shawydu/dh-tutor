@@ -60,6 +60,9 @@ class Scheduler:
             {
                 "Label": job.label,
                 "ProgramArguments": [
+                    # -i: hold an idle-sleep assertion only while the probe runs
+                    # shortcut: keyed on the command name; a Job field if another job needs it
+                    *(["/usr/bin/caffeinate", "-i"] if job.command[0] == "probe" else []),
                     self._uv,
                     "--directory",
                     str(self._checkout),

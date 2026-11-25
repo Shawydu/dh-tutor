@@ -77,8 +77,9 @@ def test_render_plist(
 ) -> None:
     """Each plist runs its command via uv at the configured time and logs to scheduler.log."""
     plist = plistlib.loads(scheduler.render(scheduler.jobs[index]))
+    awake = ["/usr/bin/caffeinate", "-i"] if command[0] == "probe" else []
     assert plist["ProgramArguments"] == [
-        "/bin/uv", "--directory", str(checkout), "run", "deepdive", *command
+        *awake, "/bin/uv", "--directory", str(checkout), "run", "deepdive", *command
     ]  # fmt: skip
     assert plist["StartCalendarInterval"] == {"Hour": hour, "Minute": minute}
     assert plist["StandardOutPath"] == plist["StandardErrorPath"]

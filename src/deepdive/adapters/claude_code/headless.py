@@ -5,12 +5,15 @@ subscription, so no `--bare`. The agenda goes in the prompt because the agent ca
 """
 
 import json
+import re
 import subprocess
 import tempfile
+from dataclasses import astuple
 from pathlib import Path
 from uuid import UUID
 
 from deepdive.adapters.claude_code.install import LOCKED, REPO, _json, _persona
+from deepdive.config import ConfigError, Secrets
 from deepdive.paths import Paths
 from deepdive.probe.agenda import AgendaEntry
 from deepdive.probe.runner import AgentResult
@@ -73,8 +76,25 @@ class ClaudeProbe:
                 return AgentResult(False, f"claude did not run to the end: {type(err).__name__}")
         try:
             envelope = json.loads(done.stdout)
-            if done.returncode != 0 or not isinstance(envelope, dict) or envelope.get("is_error"):
-                raise ValueError
         except ValueError:
-            return AgentResult(False, f"claude failed (exit {done.returncode})")
-        return AgentResult(True, str(envelope.get("result", "")))
+            envelope = None
+        if done.returncode == 0 and isinstance(envelope, dict) and not envelope.get("is_error"):
+            return AgentResult(True, str(envelope.get("result", "")))
+        if isinstance(envelope, dict) and envelope.get("is_error"):
+            raw = str(envelope.get("result", ""))
+        else:
+            raw = done.stderr or done.stdout
+        reason = self._clean(raw)[-500:].strip()  # redact before cutting: no half secret survives
+        return AgentResult(False, f"claude failed (exit {done.returncode}): {reason}")
+
+    def _clean(self, text: str) -> str:
+        """One line, with the configured secret values blanked."""
+        try:
+            keys = Secrets.from_env(paths=self.paths)
+        except ConfigError:  # refused secrets.env: the run's own Secrets load failed first anyway
+            keys = Secrets()
+        # shortcut: exact match only, an escaped or encoded secret slips through; widen if seen
+        for value in astuple(keys):
+            if value:
+                text = text.replace(value, "***")
+        return re.sub(r"\s+", " ", text).strip()

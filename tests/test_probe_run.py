@@ -329,6 +329,33 @@ def test_claude_output_that_is_not_an_envelope_is_a_failure(
 
 
 @pytest.mark.parametrize(
+    ("script", "detail"),
+    [
+        (
+            """printf '{"is_error": true, "result": "  rate   limited "}'; exit 1""",
+            "claude failed (exit 1): rate limited",
+        ),
+        ("echo 'x' >&2; echo '  bad   thing ' >&2; exit 2", "claude failed (exit 2): x bad thing"),
+        ("echo 'auth s3cret-key failed' >&2; exit 1", "claude failed (exit 1): auth *** failed"),
+    ],
+    ids=["envelope", "stderr-tail", "secret-redacted"],
+)
+def test_claude_failure_detail_keeps_the_cause(
+    world: World, monkeypatch: pytest.MonkeyPatch, script: str, detail: str
+) -> None:
+    """A failed claude run reports its cause on one line with secret values blanked."""
+    exe = world.paths.root / "bin" / "claude"
+    exe.parent.mkdir()
+    exe.write_text(f"#!/bin/sh\n{script}\n")
+    exe.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{exe.parent}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("GITHUB_TOKEN", "s3cret-key")
+    entry = AgendaEntry(world.question, "open", "q", "x", [])
+    result = ClaudeProbe(world.paths, timeout=30).run(world.run, world.topic, [entry])
+    assert (result.ok, result.detail) == (False, detail)
+
+
+@pytest.mark.parametrize(
     ("outcomes", "status"),
     [
         ([], "ok"),
