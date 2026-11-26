@@ -2,7 +2,7 @@ import json
 from collections.abc import Sequence
 from uuid import UUID
 
-from deepdive.store.enums import TopicStatus
+from deepdive.store.enums import CharterDriver, TopicStatus
 from deepdive.store.models import Charter
 from deepdive.store.repos._common import Repo
 from deepdive.store.repos.topics import TopicRepo
@@ -21,6 +21,9 @@ class CharterRepo(Repo[Charter]):
         parked: Sequence[str],
         done_when: str,
         search_terms: Sequence[str] = (),
+        driver: CharterDriver | None = None,
+        decision_choice: str | None = None,
+        decision_reasons: str | None = None,
         session_id: UUID | None = None,
     ) -> Charter:
         """Store a new charter version: 1 for a topic's first, then one more each time."""
@@ -34,8 +37,8 @@ class CharterRepo(Repo[Charter]):
             self.conn.execute(
                 "INSERT INTO charter"
                 " (topic_id, version, core_questions, in_scope, parked, done_when, search_terms,"
-                " session_id)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                " driver, decision_choice, decision_reasons, session_id)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     topic_id,
                     version,
@@ -44,6 +47,9 @@ class CharterRepo(Repo[Charter]):
                     json.dumps(list(parked)),
                     done_when,
                     json.dumps(list(search_terms)),
+                    driver,
+                    decision_choice,
+                    decision_reasons,
                     session_id,
                 ),
             )

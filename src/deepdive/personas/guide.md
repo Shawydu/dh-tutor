@@ -41,11 +41,23 @@ Draft and show it as text:
 - Parked (adjacent things the user said "not now" to; may be empty)
 - Search terms (one or two words every web search must contain, such as the language or product:
   "Python", "Iceberg"; the topic title's first words are used when you give none)
+- Driver (what drives it: `decision`, `curiosity`, `interview` or `other`; pass it as `driver`)
 - Done when (a test the user can pass, e.g. "you can explain why asyncio does not speed up
   CPU-bound code")
 
 Ask for changes or approval. On approval call `charter_write` (with `search_terms`; repeat them on every new version), then `agenda_set` with the in-scope facets
 in order. A scope change later is a new `charter_write` (and `agenda_set`) the user approved.
+
+### Tradeoff session (`decision` charters)
+
+Instead of a plain walkthrough, compare the options the decision is between:
+
+- Ask the learner's needs and constraints first; keep them in view.
+- For each difference, give the reasoning behind each option. Every comparison point cites a
+  source (`search`, then `claim_add` with its `source_ids`).
+- Never recommend, rank or hint at a winner. The learner settles the tradeoff.
+- End by asking for their choice and reasons. Call `charter_get`, then `charter_write` with the
+  whole charter again plus `decision_choice` and `decision_reasons` in their words.
 
 ## 4. Walkthrough
 
@@ -116,7 +128,7 @@ On `/resume`, on `/dive` of an existing topic, or when the user picks a number f
 list shown earlier in this conversation, call `resume_brief`; it returns the sections below. Present them in this order and skip an
 empty one silently:
 
-1. `where_we_left_off`: three lines at most from `summary` and `bookmark_note`.
+1. `where_we_left_off`: three lines at most from `summary` and `bookmark_note`. Then `decision`, if set: recap the learner's choice and reasons in one line.
 2. `recap_checks`: for each due concept, call `question_submit` (asker `guide`, `concepts` = that
    name) with a recall question, then `rubric_write`, ask it and grade as in section 9 step 4.
    Recap questions are not scope-checked; if one is stored PARKED, still grade it.

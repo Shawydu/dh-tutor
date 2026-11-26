@@ -61,7 +61,8 @@ class TopicTools(Tools):
         return {"topics": shown, "page": page, "pages": pages, "total": len(rows)}
 
     async def resume_brief(self, topic_id: Id, item: Id | None = None) -> dict[str, Any]:
-        """To resume a topic, in the order to present it: where_we_left_off, recap_checks (up to
+        """To resume a topic, in the order to present it: where_we_left_off, decision (the learner's
+        recorded choice and reasons, or null), recap_checks (up to
         two concepts of the topic due for a recap: ask each, see the guide's Resuming), new_findings
         (the topic's best 3 unread discoveries), weakened_claims (every weakened claim with the
         discovery that weakened it, until cleared), next_agenda_item. Pass
@@ -76,6 +77,7 @@ class TopicTools(Tools):
                 raise InvalidInputError("item is not a discovery of this topic")
             await self.discovery_open(item)
             unread = [opened, *(d for d in unread if d.id != item)]
+        charter = self.ctx.store.charters.get_latest(topic_id)
         last = self.ctx.store.sessions.latest(topic_id, recorded=True)
         mark = last.bookmark if last else None
         items = self.ctx.store.agenda.list_items(topic_id)
@@ -88,6 +90,9 @@ class TopicTools(Tools):
                 "summary": last.summary if last else None,
                 "bookmark_note": mark.note if mark else None,
             },
+            "decision": {"choice": charter.decision_choice, "reasons": charter.decision_reasons}
+            if charter and charter.decision_choice
+            else None,
             "recap_checks": self._due_recaps(topic_id),
             "new_findings": [found.finding(d).model_dump(mode="json") for d in unread[:3]],
             "weakened_claims": [
@@ -166,6 +171,7 @@ class TopicTools(Tools):
             parked=[],
             done_when=parent_charter.done_when,
             search_terms=parent_charter.search_terms,
+            driver=parent_charter.driver,
         )
         nxt = self.ctx.store.agenda.next_open(parent_id)
         old = parent_session.bookmark

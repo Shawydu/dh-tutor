@@ -431,6 +431,7 @@ def test_resume_brief_orders_sections_and_resumes_at_the_bookmarked_item(ledger:
     fresh = ledger.call("resume_brief", topic_id=tid)
     assert list(fresh) == [
         "where_we_left_off",
+        "decision",
         "recap_checks",
         "new_findings",
         "weakened_claims",
@@ -474,7 +475,7 @@ def test_child_topic_round_trip_bookmarks_parent_and_returns_to_it(ledger: Ledge
     tid, sid = _session(ledger)
     ledger.call(
         "charter_write", session_id=sid, topic_id=tid, core_questions=["why"], in_scope=["a", "b"],
-        parked=[], done_when="explain asyncio",
+        parked=[], done_when="explain asyncio", driver="interview",
     )  # fmt: skip
     items = ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=["a", "b"])["items"]
     q = ledger.call(
@@ -487,7 +488,10 @@ def test_child_topic_round_trip_bookmarks_parent_and_returns_to_it(ledger: Ledge
     made = ledger.call("child_topic_create", session_id=sid, parent_id=tid, question_id=q["id"])
     child = made["child"]
     assert (child["parent_topic_id"], child["status"]) == (tid, "active")
-    assert made["charter"]["done_when"] == "explain asyncio"
+    assert (made["charter"]["done_when"], made["charter"]["driver"]) == (
+        "explain asyncio",
+        "interview",
+    )
     assert made["charter"]["core_questions"] == ["how does CPython free memory?"]
     assert made["session"]["topic_id"] == child["id"]
     back = ledger.call("child_topic_finish", child_id=child["id"], session_id=sid)
@@ -827,3 +831,35 @@ def test_session_student_mode_defaults_to_both_and_can_be_set(ledger: Ledger) ->
     assert ledger.call("session_student_mode_set", session_id=sid, mode="loud")["error"] == (
         "invalid_input"
     )
+
+
+@pytest.mark.parametrize(
+    "driver", ["decision", "curiosity", None], ids=["decision", "curiosity", "none"]
+)
+def test_charter_driver_round_trips(ledger: Ledger, driver: str | None) -> None:
+    """charter_write stores the driver and charter_get returns it (null when not given)."""
+    tid, sid = _session(ledger)
+    extra = {"driver": driver} if driver else {}
+    ledger.call(
+        "charter_write", session_id=sid, topic_id=tid, core_questions=["why"], in_scope=[],
+        parked=[], done_when="done", **extra,
+    )  # fmt: skip
+    assert ledger.call("charter_get", topic_id=tid)["driver"] == driver
+
+
+def test_learners_choice_is_stored_on_a_new_charter_version_and_shown_on_resume(
+    ledger: Ledger,
+) -> None:
+    """A decision charter's choice is stored, carries over to later versions and shows on resume."""
+    tid, sid = _session(ledger)
+    write = {"session_id": sid, "topic_id": tid, "core_questions": ["A or B?"], "in_scope": [],
+             "parked": [], "done_when": "done", "driver": "decision"}  # fmt: skip
+    ledger.call("charter_write", **write)
+    assert ledger.call("resume_brief", topic_id=tid)["decision"] is None
+    ledger.call("charter_write", **write, decision_choice="A", decision_reasons="we use Spark")
+    assert ledger.call("resume_brief", topic_id=tid)["decision"] == {
+        "choice": "A",
+        "reasons": "we use Spark",
+    }
+    later = ledger.call("charter_write", **{**write, "driver": None, "in_scope": ["x"]})
+    assert (later["driver"], later["decision_choice"]) == ("decision", "A")

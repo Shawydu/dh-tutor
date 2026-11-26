@@ -14,6 +14,7 @@ from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 from deepdive.store.enums import (
     AgendaItemStatus,
+    CharterDriver,
     ClaimStatus,
     DiscoveryEffect,
     DiscoveryTargetType,
@@ -69,6 +70,9 @@ class Charter(BaseModel):
     done_when: str
     session_id: UUID | None
     search_terms: list[str]
+    driver: CharterDriver | None
+    decision_choice: str | None
+    decision_reasons: str | None
 
     _decode = field_validator(
         "core_questions", "in_scope", "parked", "search_terms", mode="before"

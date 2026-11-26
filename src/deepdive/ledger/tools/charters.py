@@ -2,6 +2,7 @@ from typing import Any
 
 from deepdive.ledger.limits import Id, Items, SearchTerms, Text, Version
 from deepdive.ledger.tools._common import Tools
+from deepdive.store.enums import CharterDriver
 from deepdive.store.errors import CharterNotFoundError
 
 
@@ -15,9 +16,20 @@ class CharterTools(Tools):
         parked: Items,
         done_when: Text,
         search_terms: SearchTerms | None = None,
+        driver: CharterDriver | None = None,
+        decision_choice: Text | None = None,
+        decision_reasons: Text | None = None,
     ) -> dict[str, Any]:
         """Store a new charter version for the topic (1 first, then one more each time).
-        search_terms: up to two words every web search for this topic must contain."""
+        search_terms: up to two words every web search for this topic must contain.
+        driver: what drives the topic (decision, curiosity, interview, other). For a decision, the
+        learner's own choice and reasons go in decision_choice and decision_reasons. Left out, all
+        three carry over from the previous version."""
+        prev = self.ctx.store.charters.get_latest(topic_id)
+        if prev is not None:
+            driver = driver or prev.driver
+            decision_choice = decision_choice or prev.decision_choice
+            decision_reasons = decision_reasons or prev.decision_reasons
         return self.ctx.store.charters.write(
             topic_id,
             core_questions=core_questions,
@@ -25,6 +37,9 @@ class CharterTools(Tools):
             parked=parked,
             done_when=done_when,
             search_terms=search_terms or [],
+            driver=driver,
+            decision_choice=decision_choice,
+            decision_reasons=decision_reasons,
             session_id=session_id,
         ).model_dump(mode="json")
 

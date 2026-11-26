@@ -27,6 +27,13 @@ class QuestionAsker(StrEnum):
     PROBE = "probe"
 
 
+class CharterDriver(StrEnum):
+    DECISION = "decision"
+    CURIOSITY = "curiosity"
+    INTERVIEW = "interview"
+    OTHER = "other"
+
+
 class SessionStudentMode(StrEnum):
     OFF = "off"
     CURIOUS = "curious"

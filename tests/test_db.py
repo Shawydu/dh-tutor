@@ -11,6 +11,7 @@ from deepdive.cli import app
 from deepdive.store.db import Database
 from deepdive.store.enums import (
     AgendaItemStatus,
+    CharterDriver,
     ClaimStatus,
     DiscoveryEffect,
     DiscoveryTargetType,
@@ -68,6 +69,7 @@ ENUM_COLUMNS = [
     ("knowledge_evidence", "kind", "knowledge_evidence_kind"),
     ("knowledge_evidence", "grade", "knowledge_evidence_grade"),
     ("session", "student_mode", "session_student_mode"),
+    ("charter", "driver", "charter_driver"),
 ]
 
 
@@ -145,6 +147,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             "0011_knowledge_level_real",
             "0012_session_student_mode",
             "0013_session_grading",
+            "0014_charter_decision",
         ]
         assert db.migrate() == []
         assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
@@ -161,6 +164,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             (11, "0011_knowledge_level_real"),
             (12, "0012_session_student_mode"),
             (13, "0013_session_grading"),
+            (14, "0014_charter_decision"),
         ]
 
 
@@ -469,7 +473,7 @@ def test_enum_tables_match_the_python_enums(db: Database) -> None:
         TopicStatus, AgendaItemStatus, QuestionAsker, QuestionStatus, QuestionEdgeRelation,
         ClaimStatus, EvidenceStance, ProbeRunStatus, DiscoveryEffect, DiscoveryTargetType,
         KnowledgeEvidenceKind,
-        KnowledgeEvidenceGrade, SessionStudentMode,
+        KnowledgeEvidenceGrade, SessionStudentMode, CharterDriver,
     ):  # fmt: skip
         table = "".join("_" + c.lower() if c.isupper() else c for c in enum.__name__).lstrip("_")
         values = {v for (v,) in db.conn.execute(f"SELECT value FROM {table}")}
