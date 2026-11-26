@@ -26,13 +26,19 @@ def test_init_writes_the_locked_down_workspace(tmp_path: Path) -> None:
     }
     settings = json.loads((tmp_path / ".claude/settings.json").read_text())
     assert settings["permissions"]["allow"] == ["mcp__deepdive__*"]
-    assert {"WebSearch", "WebFetch", "Bash", "Edit", "Write", "Read", "Glob", "Grep"} <= set(
-        settings["permissions"]["deny"]
-    )
+    deny = set(settings["permissions"]["deny"])
+    assert {"Bash", "Edit", "Write", "Read", "Glob", "Grep"} <= deny
+    assert not {"WebSearch", "WebFetch"} & deny  # allowed, but only through the PreToolUse hook
     run = f"uv run --project {REPO} deepdive hook"
     assert settings["hooks"] == {
         "UserPromptSubmit": [
             {"hooks": [{"type": "command", "command": f"{run} user-prompt", "timeout": 10}]}
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "WebSearch|WebFetch",
+                "hooks": [{"type": "command", "command": f"{run} pre-tool"}],
+            }
         ],
         "SessionStart": [
             {

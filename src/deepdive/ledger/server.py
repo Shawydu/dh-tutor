@@ -120,16 +120,15 @@ def create_server(
     ctx = LedgerContext(db=db, paths=paths, probe=probe)
     server = LedgerServer(ctx)
     config = load_config(paths.config)
-    web = WebTools(
-        ctx, config, load_pack(config.domain.pack), Secrets.from_env(paths=paths), transport
-    )
+    pack = load_pack(config.domain.pack)
+    web = WebTools(ctx, config, pack, Secrets.from_env(paths=paths), transport)
     if probe:
         ctx.store.probe_runs.require(probe.probe_run_id)
         ctx.store.topics.require(probe.topic_id)
         DiscoveryTools(
             ctx, config, classifier or get_classifier(config, live_session=False)
         ).register(server)
-        ClaimTools(ctx).register(server, only={"claim_list", "evidence_list"})
+        ClaimTools(ctx, pack).register(server, only={"claim_list", "evidence_list"})
         web.register(server)
         return server
     live = classifier or get_classifier(config, live_session=True)
@@ -139,7 +138,7 @@ def create_server(
         CharterTools(ctx),
         SessionTools(ctx),
         AgendaTools(ctx),
-        ClaimTools(ctx),
+        ClaimTools(ctx, pack),
         ConceptTools(ctx),
         QuestionTools(ctx, matcher),
         GradingTools(ctx, config, live),

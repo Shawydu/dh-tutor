@@ -1,7 +1,7 @@
-"""The Claude Code hook commands: `deepdive hook user-prompt` and `deepdive hook session-start`.
+"""The Claude Code hook commands: `deepdive hook user-prompt`, `session-start` and `pre-tool`.
 
-A hook must never block the user's message: any failure or timeout yields no output and is logged
-(error class only, never prompt text).
+Except pre-tool (which denies on failure), a hook must never block the user's message: any failure
+or timeout yields no output and is logged (error class only, never prompt text).
 """
 
 import json
@@ -31,6 +31,18 @@ def _context(text: str) -> str:
     )
 
 
+def _decision(allow: bool, reason: str) -> str:
+    return json.dumps(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow" if allow else "deny",
+                "permissionDecisionReason": reason,
+            }
+        }
+    )
+
+
 class Hooks:
     def __init__(self, paths: Paths, classifier: Classifier | None = None) -> None:
         self.paths = paths
@@ -52,6 +64,31 @@ class Hooks:
             return ""
         line = f"agent_session_id: {agent_id}"
         return self._guarded("session-start", lambda: f"{self._brief()}\n{line}") or line
+
+    def pre_tool(self, raw: str) -> str:
+        """The PreToolUse decision for the built-in web tools: WebSearch counts against the
+        session's search budget, WebFetch passes. Fails closed (deny) on any error."""
+        try:
+            payload = json.loads(raw)
+            if payload.get("tool_name") not in ("WebSearch", "WebFetch"):
+                return _decision(False, "deepdive only gates WebSearch and WebFetch.")
+            self.paths.ensure_dirs()
+            with Database(self.paths.db) as db:
+                db.migrate()
+                store = Store(db)
+                link = store.agent_sessions.get(UUID(payload["session_id"]))
+                session = store.sessions.get(link.session_id) if link else None
+                if session is None or session.ended_at is not None:
+                    return _decision(False, "No open deepdive session: start one with /dive first.")
+                limit = load_config(self.paths.config).search.session_budget
+                if payload.get("tool_name") == "WebSearch" and not store.sessions.spend_search(
+                    session.id, limit
+                ):
+                    return _decision(False, f"Search budget spent ({limit} per session).")
+            return _decision(True, "counted against the session search budget")
+        except Exception as exc:
+            self._log("pre-tool", type(exc).__name__)
+            return _decision(False, "deepdive could not check the search budget.")
 
     def _user_prompt(self, raw: str, attached: list[bool]) -> str:
         payload = json.loads(raw)

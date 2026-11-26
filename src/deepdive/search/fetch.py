@@ -47,6 +47,16 @@ def html_to_text(markup: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def check_url(url: str, allowed: Sequence[str]) -> str:
+    """The url if it is plain https on an allowed host, else FetchError."""
+    parts = urlsplit(url)
+    if parts.scheme != "https" or parts.port not in (None, 443):
+        raise FetchError("scheme_not_allowed", "only plain https URLs are fetched")
+    if (parts.hostname or "") not in allowed:
+        raise FetchError("host_not_allowed", f"{parts.hostname} is not on the domain allowlist")
+    return url
+
+
 class Fetcher:
     """GETs pages from the `allowed` hosts as text of at most `max_chars`."""
 
@@ -55,12 +65,7 @@ class Fetcher:
         self.max_chars = max_chars
 
     def _check(self, url: str) -> str:
-        parts = urlsplit(url)
-        if parts.scheme != "https" or parts.port not in (None, 443):
-            raise FetchError("scheme_not_allowed", "only plain https URLs are fetched")
-        if (parts.hostname or "") not in self.allowed:
-            raise FetchError("host_not_allowed", f"{parts.hostname} is not on the domain allowlist")
-        return url
+        return check_url(url, self.allowed)
 
     async def text(self, client: httpx.AsyncClient, url: str) -> tuple[str, bool]:
         """The page as text and whether it was cut short. Raises FetchError."""

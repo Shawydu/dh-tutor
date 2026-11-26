@@ -11,7 +11,6 @@ from deepdive.ledger.limits import Id, Keywords, Limit, Query, Url
 from deepdive.ledger.tools._common import Tools
 from deepdive.search.arxiv import Arxiv
 from deepdive.search.base import TIER_KEY, SearchProvider, SearchResult
-from deepdive.search.budget import Budget
 from deepdive.search.cache import Cache
 from deepdive.search.fetch import Fetcher, FetchError
 from deepdive.search.github import GitHub
@@ -32,7 +31,7 @@ class WebTools(Tools):
         self.transport = transport
         self.cache = Cache(ctx.paths.cache)
         self.fetcher = Fetcher(pack.fetch_allowlist, config.search.fetch_max_chars)
-        self.budget = Budget(config.search.session_budget)  # interactive; a probe's is in the DB
+        self.session_budget = config.search.session_budget  # a probe's budget is in probe_runs
         self.probe_limits = config.probe
         self.registry: dict[str, SearchProvider] = {
             p.name: p for p in (GitHub(secrets.github_token), Arxiv(), HackerNews())
@@ -65,7 +64,11 @@ class WebTools(Tools):
             return not self.ctx.store.probe_runs.spend(
                 probe.probe_run_id, probe.topic_id, kind, limit
             )
-        return kind == "search" and not self.budget.spend(str(session_id or "interactive"))
+        if kind == "fetch":
+            return False
+        if session_id is None:
+            raise InvalidInputError("search needs the session_id returned by session_start")
+        return not self.ctx.store.sessions.spend_search(session_id, self.session_budget)
 
     async def search(
         self,
@@ -80,6 +83,8 @@ class WebTools(Tools):
 
         query: 1-4 keywords every result must match (the topic name), never a sentence.
         optional: a few more keywords that rank results but may be missing.
+
+        session_id is required outside a probe.
 
         providers picks from the enabled providers (default all). Each call costs one search
         from the session budget; at zero the answer is {"error": "budget_exhausted"}.
@@ -116,7 +121,11 @@ class WebTools(Tools):
             }
             for r in results
         ]
-        left = None if self.ctx.probe else self.budget.remaining(str(session_id or "interactive"))
+        left = (
+            None
+            if self.ctx.probe or session_id is None
+            else self.session_budget - self.ctx.store.sessions.require(session_id).searches_used
+        )
         return {"results": out, "errors": errors, "budget_remaining": left}
 
     async def fetch(self, url: Url, session_id: Id | None = None) -> dict[str, Any]:

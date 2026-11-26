@@ -14,7 +14,8 @@ from pathlib import Path
 
 MARKER = ".deepdive-generated"
 REPO = Path(__file__).resolve().parents[4]  # shortcut: assumes a checkout, not a wheel install
-LOCKED = ["WebSearch", "WebFetch", "Bash", "Edit", "Write", "Read", "Glob", "Grep", "NotebookEdit"]
+LOCKED = ["Bash", "Edit", "Write", "Read", "Glob", "Grep", "NotebookEdit"]
+WEB = ["WebSearch", "WebFetch"]  # the interactive workspace allows them only through the hook
 
 PICK = (
     "$ARGUMENTS is a number `n` or a title. A number counts only when a topic list showing it is "
@@ -158,6 +159,7 @@ class Workspace:
                     # Claude Code's limit sits above the hook's own 8 s cut-off
                     "UserPromptSubmit": [{"hooks": [hook("user-prompt", timeout=10)]}],
                     # /clear and /resume start a new Claude session id the guide must re-attach
+                    "PreToolUse": [{"matcher": "|".join(WEB), "hooks": [hook("pre-tool")]}],
                     "SessionStart": [
                         {"matcher": "startup|resume|clear", "hooks": [hook("session-start")]}
                     ],

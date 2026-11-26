@@ -110,14 +110,14 @@ def test_round_trip(ledger: Ledger) -> None:
     source = ledger.call(
         "source_register",
         session_id=sid,
-        url="https://peps.python.org/pep-0703/",
+        url="https://github.com/python/peps/pep-0703",
         kind="docs",
         tier=1,
     )
     again = ledger.call(
         "source_register",
         session_id=sid,
-        url="https://peps.python.org/pep-0703/",
+        url="https://github.com/python/peps/pep-0703",
         kind="docs",
         tier=1,
     )
@@ -149,7 +149,7 @@ def test_round_trip(ledger: Ledger) -> None:
 def test_claim_with_unknown_source_writes_nothing(ledger: Ledger) -> None:
     tid, sid = _session(ledger)
     known = ledger.call(
-        "source_register", session_id=sid, url="https://e.com/a", kind="docs", tier=1
+        "source_register", session_id=sid, url="https://github.com/e/a", kind="docs", tier=1
     )
     result = ledger.call(
         "claim_add", session_id=sid, topic_id=tid, text="x", source_ids=[known["id"], MISSING]
@@ -174,7 +174,9 @@ def test_claim_set_status_clears_only_weakened_claims(
 ) -> None:
     """claim_set_status moves a weakened claim to open or established and refuses anything else."""
     tid, sid = _session(ledger)
-    src = ledger.call("source_register", session_id=sid, url="https://e.com/a", kind="docs", tier=1)
+    src = ledger.call(
+        "source_register", session_id=sid, url="https://github.com/e/a", kind="docs", tier=1
+    )
     claim = ledger.call(
         "claim_add", session_id=sid, topic_id=tid, text="x", source_ids=[src["id"]], status=start
     )
@@ -188,7 +190,7 @@ def test_claim_set_status_clears_only_weakened_claims(
 def test_evidence_with_unknown_source_writes_nothing(ledger: Ledger) -> None:
     tid, sid = _session(ledger)
     known = ledger.call(
-        "source_register", session_id=sid, url="https://e.com/a", kind="docs", tier=1
+        "source_register", session_id=sid, url="https://github.com/e/a", kind="docs", tier=1
     )
     claim = ledger.call(
         "claim_add", session_id=sid, topic_id=tid, text="x", source_ids=[known["id"]]
@@ -234,7 +236,7 @@ def test_malformed_id_and_unknown_enum_are_invalid_input_and_write_nothing(
 ) -> None:
     tid, sid = _session(ledger)
     source = ledger.call(
-        "source_register", session_id=sid, url="https://e.com/a", kind="docs", tier=1
+        "source_register", session_id=sid, url="https://github.com/e/a", kind="docs", tier=1
     )
     before = {t: ledger.count(t) for t in ("topic", "session", "claim", "evidence")}
     bad_calls: list[tuple[str, dict[str, Any]]] = [
@@ -262,7 +264,7 @@ def test_malformed_id_and_unknown_enum_are_invalid_input_and_write_nothing(
 def test_every_write_tool_checks_session_id_and_writes_nothing(ledger: Ledger) -> None:
     tid, sid = _session(ledger)
     source = ledger.call(
-        "source_register", session_id=sid, url="https://e.com/a", kind="docs", tier=1
+        "source_register", session_id=sid, url="https://github.com/e/a", kind="docs", tier=1
     )
     claim = ledger.call(
         "claim_add", session_id=sid, topic_id=tid, text="x", source_ids=[source["id"]]
@@ -275,7 +277,7 @@ def test_every_write_tool_checks_session_id_and_writes_nothing(ledger: Ledger) -
                           "done_when": "d"},
         "agenda_set": {"topic_id": tid, "facets": ["b"]},
         "agenda_done": {"item_id": item["id"]},
-        "source_register": {"url": "https://e.com/new", "kind": "docs", "tier": 1},
+        "source_register": {"url": "https://github.com/e/new", "kind": "docs", "tier": 1},
         "claim_add": {"topic_id": tid, "text": "y", "source_ids": [source["id"]]},
         "evidence_add": {"claim_id": claim["id"], "source_id": source["id"], "stance": "supports"},
         "question_answer": {"question_id": MISSING, "summary": "s"},
@@ -378,7 +380,9 @@ def test_map_get_returns_charter_agenda_progress_and_claims(ledger: Ledger) -> N
     )  # fmt: skip
     items = ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=["GIL", "asyncio"])
     ledger.call("agenda_done", session_id=sid, item_id=items["items"][0]["id"])
-    src = ledger.call("source_register", session_id=sid, url="https://e.com/a", kind="docs", tier=1)
+    src = ledger.call(
+        "source_register", session_id=sid, url="https://github.com/e/a", kind="docs", tier=1
+    )
     ledger.call(
         "claim_add", session_id=sid, topic_id=tid, text="GIL serialises", source_ids=[src["id"]]
     )
@@ -389,7 +393,7 @@ def test_map_get_returns_charter_agenda_progress_and_claims(ledger: Ledger) -> N
         ("asyncio", "open"),
     ]
     assert [(c["text"], c["sources"]) for c in got["claims"]] == [
-        ("GIL serialises", [{"id": src["id"], "url": "https://e.com/a"}])
+        ("GIL serialises", [{"id": src["id"], "url": "https://github.com/e/a"}])
     ]
 
 
@@ -542,7 +546,9 @@ def test_topic_recap_returns_every_section_in_order(ledger: Ledger) -> None:
         in_scope=["a"], parked=["b"], done_when="can explain",
     )  # fmt: skip
     ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=["what"])
-    src = ledger.call("source_register", session_id=sid, url="https://e.org/a", kind="docs", tier=1)
+    src = ledger.call(
+        "source_register", session_id=sid, url="https://github.com/o/a", kind="docs", tier=1
+    )
     ledger.call(
         "claim_add", session_id=sid, topic_id=tid, text="c1", source_ids=[src["id"]],
         excerpt_summary="x",
@@ -560,7 +566,7 @@ def test_topic_recap_returns_every_section_in_order(ledger: Ledger) -> None:
     first, second = got["sessions"]
     assert second["summary"] is None and first["bookmark_note"] == "at what"
     assert first["summary"].endswith("...") and got["truncated"] is True
-    assert got["claims"][0]["sources"] == [{"id": src["id"], "url": "https://e.org/a"}]
+    assert got["claims"][0]["sources"] == [{"id": src["id"], "url": "https://github.com/o/a"}]
     assert [x["text"] for x in got["questions"]["open"]] == ["open one"]
     assert got["questions"]["answered"][0]["answer_summary"] == "42"
     assert got["children"] == [{"title": child["title"], "status": child["status"]}]
@@ -804,7 +810,7 @@ def test_concept_tools_tag_list_and_merge(ledger: Ledger) -> None:
         concepts=["Locks"],
     )  # fmt: skip
     source = ledger.call(
-        "source_register", session_id=sid, url="https://e.com", kind="docs", tier=1
+        "source_register", session_id=sid, url="https://github.com/e", kind="docs", tier=1
     )
     ledger.call(
         "claim_add", session_id=sid, topic_id=tid, text="the GIL is a lock",
@@ -863,3 +869,36 @@ def test_learners_choice_is_stored_on_a_new_charter_version_and_shown_on_resume(
     }
     later = ledger.call("charter_write", **{**write, "driver": None, "in_scope": ["x"]})
     assert (later["driver"], later["decision_choice"]) == ("decision", "A")
+
+
+@pytest.mark.parametrize(
+    ("url", "preregistered", "ok"),
+    [
+        ("https://github.com/e/a", False, True),
+        ("https://blog.example.com/post", False, False),
+        ("https://blog.example.com/post", True, True),
+        ("http://github.com/e/a", False, False),
+        ("https://github.com:8080/e/a", False, False),
+    ],
+    ids=[
+        "allowlisted",
+        "off-allowlist",
+        "already-registered-by-search",
+        "http-scheme",
+        "other-port",
+    ],
+)
+def test_source_register_refuses_off_allowlist_urls(
+    ledger: Ledger, url: str, preregistered: bool, ok: bool
+) -> None:
+    """A url off the allowlist (host, scheme or port) is refused unless already registered."""
+    sid = _session(ledger)[1]
+    if preregistered:
+        with Database(ledger.paths.db) as db:
+            Store(db).sources.register(url=url, kind="blog", tier=3, seen_at=clock.now())
+    out = ledger.call("source_register", session_id=sid, url=url, kind="docs", tier=1)
+    assert ("id" in out) is ok
+    if not ok:
+        assert (
+            out["error"] == "invalid_input" and url in out["detail"] and "None" not in out["detail"]
+        )

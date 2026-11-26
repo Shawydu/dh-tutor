@@ -96,6 +96,7 @@ class Session(BaseModel):
     summary: str | None
     student_mode: SessionStudentMode
     grading: bool
+    searches_used: int
 
     _decode = field_validator("bookmark", mode="before")(_from_json)
 

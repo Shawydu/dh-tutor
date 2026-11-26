@@ -317,7 +317,9 @@ def test_claude_command_line_is_locked_down(world: World) -> None:
     assert cmd[:3] == ["claude", "-p", "P"]
     assert "--bare" not in cmd
     assert cmd[cmd.index("--allowedTools") + 1] == "mcp__deepdive__*"
-    assert "Bash" in cmd[cmd.index("--disallowedTools") + 1]
+    assert {"Bash", "WebSearch", "WebFetch"} <= set(
+        cmd[cmd.index("--disallowedTools") + 1].split(",")
+    )
     assert cmd[-2:] == ["--output-format", "json"]
 
 

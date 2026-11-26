@@ -12,7 +12,7 @@ from dataclasses import astuple
 from pathlib import Path
 from uuid import UUID
 
-from deepdive.adapters.claude_code.install import LOCKED, REPO, _json, _persona
+from deepdive.adapters.claude_code.install import LOCKED, REPO, WEB, _json, _persona
 from deepdive.config import ConfigError, Secrets
 from deepdive.paths import Paths
 from deepdive.probe.agenda import AgendaEntry
@@ -56,7 +56,7 @@ class ClaudeProbe:
             "claude", "-p", prompt,
             "--strict-mcp-config", "--mcp-config", str(mcp_config),
             "--allowedTools", "mcp__deepdive__*",
-            "--disallowedTools", ",".join(LOCKED),
+            "--disallowedTools", ",".join(WEB + LOCKED),
             "--permission-mode", "dontAsk",
             "--output-format", "json",
         ]  # fmt: skip

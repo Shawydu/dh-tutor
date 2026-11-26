@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from test_ledger_server import Ledger
+from test_ledger_server import Ledger, _session
 
 from deepdive.ledger.server import create_server
 from deepdive.paths import Paths
@@ -70,10 +70,13 @@ def test_hn_parses_stories_and_comments() -> None:
 
 
 def test_search_registers_sources_and_returns_their_ids(web: Ledger) -> None:
-    out = web.call("search", query="iceberg")
+    sid = _session(web)[1]
+    out = web.call("search", query="iceberg", session_id=sid)
     assert out["errors"] == {} and out["results"]
     assert web.count("source") == len({r["source_id"] for r in out["results"]})
-    web.call("search", query="iceberg")  # second call is a cache hit and adds no sources
+    web.call(
+        "search", query="iceberg", session_id=sid
+    )  # second call is a cache hit and adds no sources
     assert web.count("source") == len({r["source_id"] for r in out["results"]})
 
 
@@ -81,9 +84,11 @@ def test_search_budget_runs_out(web: Ledger) -> None:
     (web.paths.config).write_text('[search]\nsession_budget = 2\napis = ["hn"]\n')
     server = create_server(web.paths, transport=httpx.MockTransport(handler))
     tight = Ledger(server, web.paths)
-    assert "results" in tight.call("search", query="a")
-    assert tight.call("search", query="b")["budget_remaining"] == 0
-    assert tight.call("search", query="c")["error"] == "budget_exhausted"
+    sid = _session(tight)[1]
+    assert "results" in tight.call("search", query="a", session_id=sid)
+    assert tight.call("search", query="b", session_id=sid)["budget_remaining"] == 0
+    assert tight.call("search", query="c", session_id=sid)["error"] == "budget_exhausted"
+    assert tight.call("search", query="c")["error"] == "invalid_input"  # no session to charge
 
 
 def test_search_rejects_unknown_providers_and_lists_enabled_ones(web: Ledger) -> None:
@@ -98,9 +103,8 @@ def test_provider_failure_is_reported_without_message(tmp_path: Path) -> None:
         raise httpx.ConnectError("secret-url-detail")
 
     paths = Paths(tmp_path)
-    out = Ledger(create_server(paths, transport=httpx.MockTransport(boom)), paths).call(
-        "search", query="x"
-    )
+    led = Ledger(create_server(paths, transport=httpx.MockTransport(boom)), paths)
+    out = led.call("search", query="x", session_id=_session(led)[1])
     assert out["results"] == [] and "secret-url-detail" not in json.dumps(out)
 
 
@@ -169,8 +173,9 @@ def test_optional_keywords_are_part_of_the_cache_key(tmp_path: Path) -> None:
 
     paths = Paths(tmp_path)
     web = Ledger(create_server(paths, transport=httpx.MockTransport(count)), paths)
+    sid = _session(web)[1]
     for optional in (["race"], ["lock"], ["lock"]):
-        web.call("search", query="python", optional=optional, providers=["hn"])
+        web.call("search", query="python", optional=optional, providers=["hn"], session_id=sid)
     assert hits == ["hn.algolia.com"] * 2
 
 

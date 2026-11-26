@@ -70,6 +70,14 @@ def hook_user_prompt() -> None:
         typer.echo(out)
 
 
+@hook_app.command("pre-tool")
+def hook_pre_tool() -> None:
+    """PreToolUse for WebSearch/WebFetch: count against the session budget, deny when spent."""
+    from deepdive.adapters.claude_code.hooks import Hooks
+
+    typer.echo(Hooks(Paths.from_env()).pre_tool(sys.stdin.read()))
+
+
 @hook_app.command("session-start")
 def hook_session_start() -> None:
     """SessionStart: print the topic brief and the agent_session_id line. Never fails."""

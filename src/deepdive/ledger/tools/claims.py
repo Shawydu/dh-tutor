@@ -1,15 +1,22 @@
 from typing import Any
 from uuid import UUID
 
+from deepdive.domain_packs import DomainPack
+from deepdive.ledger.context import LedgerContext
 from deepdive.ledger.errors import InvalidInputError
 from deepdive.ledger.limits import Concepts, Doi, Id, Kind, SourceIds, Summary, Text, Tier, Url
 from deepdive.ledger.tools._common import Tools
+from deepdive.search.fetch import FetchError, check_url
 from deepdive.store.enums import ClaimStatus, EvidenceStance
 from deepdive.store.errors import ClaimNotFoundError
 from deepdive.store.models import Evidence
 
 
 class ClaimTools(Tools):
+    def __init__(self, ctx: LedgerContext, pack: DomainPack) -> None:
+        super().__init__(ctx)
+        self.allowlist = pack.fetch_allowlist
+
     def _with_source(self, row: Evidence) -> dict[str, Any]:
         source = self.ctx.store.sources.get(row.source_id)
         return {
@@ -27,8 +34,17 @@ class ClaimTools(Tools):
     ) -> dict[str, Any]:
         """Register a source by url or doi (one is required). Returns the existing row if known.
 
-        Claims and evidence can only cite a source that is registered here.
+        Claims and evidence can only cite a source that is registered here. A url off the domain
+        allowlist is refused unless `search` or `fetch` already registered it.
         """
+        if url and not self.ctx.store.sources.find(url=url):
+            try:
+                check_url(url, self.allowlist)
+            except FetchError as exc:
+                raise InvalidInputError(
+                    f"{url} refused: {exc}; allowlist {self.allowlist}. Cite a page from "
+                    "`search` or `fetch` (they register it) instead"
+                ) from exc
         return self.ctx.store.sources.register(
             url=url,
             doi=doi,

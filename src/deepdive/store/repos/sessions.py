@@ -47,6 +47,17 @@ class SessionRepo(IdRepo[Session]):
         )
         return self.require(session_id)
 
+    def spend_search(self, session_id: UUID, limit: int) -> bool:
+        """Take one search from the session's budget; False when `limit` are already spent."""
+        return (
+            self.conn.execute(
+                "UPDATE session SET searches_used = searches_used + 1"
+                " WHERE id = ? AND searches_used < ?",
+                (session_id, limit),
+            ).rowcount
+            == 1
+        )
+
     def set_student_mode(self, session_id: UUID, mode: SessionStudentMode) -> Session:
         self.require(session_id)
         self.conn.execute("UPDATE session SET student_mode = ? WHERE id = ?", (mode, session_id))

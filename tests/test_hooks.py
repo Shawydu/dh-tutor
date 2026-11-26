@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from test_ledger_server import Ledger, _session
 from typer.testing import CliRunner
@@ -169,3 +170,63 @@ def test_cli_hooks_read_stdin_and_print(paths: Paths, monkeypatch: pytest.Monkey
     assert brief.exit_code == 0 and brief.output.strip().endswith(f"agent_session_id: {AGENT}")
     quiet = runner.invoke(app, ["hook", "user-prompt"], input=payload("hi"))
     assert (quiet.exit_code, quiet.output) == (0, "")
+
+
+def pre_tool(paths: Paths, tool: str = "WebSearch", session_id: str = AGENT) -> dict[str, str]:
+    raw = json.dumps({"session_id": session_id, "tool_name": tool, "tool_input": {}})
+    return json.loads(Hooks(paths).pre_tool(raw))["hookSpecificOutput"]  # type: ignore[no-any-return]
+
+
+@pytest.mark.parametrize(
+    ("tool", "calls", "decision"),
+    [
+        ("WebSearch", 2, "allow"),
+        ("WebSearch", 3, "deny"),
+        ("WebFetch", 3, "allow"),
+    ],
+    ids=["within-budget", "budget-spent", "fetch-is-not-counted"],
+)
+def test_pre_tool_counts_searches_against_the_session_budget(
+    paths: Paths, tool: str, calls: int, decision: str
+) -> None:
+    """WebSearch spends the session budget and is denied once it is spent; WebFetch never is."""
+    paths.config.write_text("[search]\nsession_budget = 2\n")
+    attach(paths)
+    outs = [pre_tool(paths, tool) for _ in range(calls)]
+    assert outs[-1]["permissionDecision"] == decision
+    assert outs[-1]["hookEventName"] == "PreToolUse" and outs[-1]["permissionDecisionReason"]
+
+
+def test_pre_tool_denies_without_an_engine_session(paths: Paths) -> None:
+    """An unattached Claude session cannot search: the reason says to start a session."""
+    out = pre_tool(paths, session_id=str(uuid4()))
+    assert out["permissionDecision"] == "deny" and "/dive" in out["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("case", ["unknown-tool", "ended-session", "malformed-json"])
+def test_pre_tool_fails_closed(paths: Paths, case: str) -> None:
+    """An unknown tool, an ended session or malformed JSON is denied."""
+    attach(paths, ended=case == "ended-session")
+    if case == "malformed-json":
+        out = json.loads(Hooks(paths).pre_tool("not json"))["hookSpecificOutput"]
+    else:
+        out = pre_tool(paths, "Bash" if case == "unknown-tool" else "WebSearch")
+    assert out["permissionDecision"] == "deny"
+
+
+def test_engine_search_and_the_hook_share_one_counter(tmp_path: Path) -> None:
+    """One engine search plus one hook search reach a limit of 2; the next of either is refused."""
+    paths = Paths(tmp_path)
+    paths.config.write_text('[search]\nsession_budget = 2\napis = ["hn"]\n')
+    ledger = Ledger(
+        create_server(
+            paths, transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"hits": []}))
+        ),
+        paths,
+    )
+    sid = _session(ledger)[1]
+    ledger.call("session_attach", session_id=sid, agent_session_id=AGENT)
+    assert ledger.call("search", query="gil", session_id=sid)["budget_remaining"] == 1
+    assert pre_tool(paths)["permissionDecision"] == "allow"
+    assert ledger.call("search", query="gil2", session_id=sid)["error"] == "budget_exhausted"
+    assert pre_tool(paths)["permissionDecision"] == "deny"
