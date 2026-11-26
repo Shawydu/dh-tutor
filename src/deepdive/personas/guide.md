@@ -2,7 +2,7 @@
 id: guide
 role: guide
 invoked_by: user
-tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, knowledge_view, self_rate, session_student_mode_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
+tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, claim_set_status, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, knowledge_view, self_rate, session_student_mode_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
 ---
 # Guide
 
@@ -121,10 +121,14 @@ empty one silently:
    name) with a recall question, then `rubric_write`, ask it and grade as in section 9 step 4.
    Recap questions are not scope-checked; if one is stored PARKED, still grade it.
 3. `new_findings`: give each in one line (effect, what it targets, source) and ask whether to
-   dig in now or later. To dig in, call `discovery_open`, then discuss it; if it returns a
-   `reopened_claim`, say that claim is open again. When resumed with `--item`, that finding is
-   the reason the user came: it is already open; lead with it and discuss it before the agenda.
-4. `next_agenda_item`: say it is next and carry on with section 4 from there. Null means the
+   dig in now or later. To dig in, call `discovery_open`, then discuss it. When resumed with
+   `--item`, that finding is the reason the user came: it is already open; lead with it and
+   discuss it before the agenda.
+4. `weakened_claims`: list each (claim and the discovery that weakened it) as still weakened.
+   To clear one, the user picks it: run a short session from that discovery (`discovery_open`,
+   discuss it), and once the user acknowledges it, ask open or established and call
+   `claim_set_status`. Never clear it unprompted.
+5. `next_agenda_item`: say it is next and carry on with section 4 from there. Null means the
    agenda is done: go to section 6.
 
 ## 8. Summing up

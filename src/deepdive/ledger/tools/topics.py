@@ -6,9 +6,6 @@ from deepdive.ledger.limits import PAGE_SIZE, TITLE_MAX, Id, Page, Title
 from deepdive.ledger.tools._common import Tools
 from deepdive.store.enums import (
     AgendaItemStatus,
-    ClaimStatus,
-    DiscoveryEffect,
-    DiscoveryTargetType,
     QuestionStatus,
     TopicStatus,
 )
@@ -66,7 +63,8 @@ class TopicTools(Tools):
     async def resume_brief(self, topic_id: Id, item: Id | None = None) -> dict[str, Any]:
         """To resume a topic, in the order to present it: where_we_left_off, recap_checks (up to
         two concepts of the topic due for a recap: ask each, see the guide's Resuming), new_findings
-        (the topic's best 3 unread discoveries), next_agenda_item. Pass
+        (the topic's best 3 unread discoveries), weakened_claims (every weakened claim with the
+        discovery that weakened it, until cleared), next_agenda_item. Pass
         `item`, a discovery id from the digest, to open it (as discovery_open) and list it
         first. Call before session_start."""
         self.ctx.store.topics.require(topic_id)
@@ -92,6 +90,12 @@ class TopicTools(Tools):
             },
             "recap_checks": self._due_recaps(topic_id),
             "new_findings": [found.finding(d).model_dump(mode="json") for d in unread[:3]],
+            "weakened_claims": [
+                {"claim_id": str(d.target_id), "discovery_id": str(f.id)}
+                | f.model_dump(mode="json", include={"target_text", "summary", "source_url"})
+                for d in found.weakening(topic_id)
+                for f in [found.finding(d)]
+            ],
             "next_agenda_item": agenda.model_dump(mode="json") if agenda else None,
         }
 
@@ -106,24 +110,15 @@ class TopicTools(Tools):
         ]
 
     async def discovery_open(self, discovery_id: Id) -> dict[str, Any]:
-        """The user digs into a finding now: mark it read and, if it weakens a claim, reopen the
-        claim. Returns the finding and the reopened claim (null if none)."""
+        """The user digs into a finding now: mark it read. A weakened claim stays weakened until
+        the guide clears it (claim_set_status)."""
         store = self.ctx.store
         found = store.discoveries.get(discovery_id)
         if found is None:
             raise InvalidInputError("no such discovery")
         with store.db.transaction():
             store.discoveries.mark_read(discovery_id, self.ctx.now())
-            claim = None
-            if (
-                found.effect == DiscoveryEffect.WEAKENS
-                and found.target_type == DiscoveryTargetType.CLAIM
-            ):
-                claim = store.claims.set_status(found.target_id, ClaimStatus.OPEN)
-        return {
-            "finding": store.discoveries.finding(found).model_dump(mode="json"),
-            "reopened_claim": claim.model_dump(mode="json") if claim else None,
-        }
+        return {"finding": store.discoveries.finding(found).model_dump(mode="json")}
 
     async def topic_pin(self, topic_id: Id, pinned: bool) -> dict[str, Any]:
         """Pin a topic to the top of the list, or unpin it."""

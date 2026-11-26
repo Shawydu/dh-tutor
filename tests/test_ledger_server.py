@@ -29,7 +29,8 @@ TOOLS = {
     "session_start", "session_bookmark", "session_end", "session_attach",
     "session_student_mode_set",
     "agenda_set", "agenda_next", "agenda_done",
-    "source_register", "claim_add", "claim_list", "evidence_add", "evidence_list",
+    "source_register", "claim_add", "claim_list", "claim_set_status", "evidence_add",
+    "evidence_list",
     "concept_tag", "concept_list", "concept_merge", "knowledge_view", "self_rate",
     "question_get", "question_answer", "parked_list",
     "rubric_write", "answer_grade", "answer_grade_set",
@@ -156,6 +157,32 @@ def test_claim_with_unknown_source_writes_nothing(ledger: Ledger) -> None:
     assert result["error"] == "source_not_found"
     assert MISSING in result["detail"]
     assert (ledger.count("claim"), ledger.count("evidence")) == (0, 0)
+
+
+@pytest.mark.parametrize(
+    ("start", "status", "error"),
+    [
+        ("weakened", "established", None),
+        ("weakened", "open", None),
+        ("weakened", "weakened", "invalid_input"),
+        ("open", "established", "invalid_input"),
+    ],
+    ids=["to-established", "to-open", "refuses-weakened", "refuses-not-weakened"],
+)
+def test_claim_set_status_clears_only_weakened_claims(
+    ledger: Ledger, start: str, status: str, error: str | None
+) -> None:
+    """claim_set_status moves a weakened claim to open or established and refuses anything else."""
+    tid, sid = _session(ledger)
+    src = ledger.call("source_register", session_id=sid, url="https://e.com/a", kind="docs", tier=1)
+    claim = ledger.call(
+        "claim_add", session_id=sid, topic_id=tid, text="x", source_ids=[src["id"]], status=start
+    )
+    cid = claim["claim"]["id"]
+    got = ledger.call("claim_set_status", claim_id=cid, status=status)
+    assert got.get("error") == error
+    if error is None:
+        assert got["status"] == status
 
 
 def test_evidence_with_unknown_source_writes_nothing(ledger: Ledger) -> None:
@@ -402,7 +429,13 @@ def test_first_charter_activates_a_scoping_topic(ledger: Ledger) -> None:
 def test_resume_brief_orders_sections_and_resumes_at_the_bookmarked_item(ledger: Ledger) -> None:
     tid, sid = _session(ledger)
     fresh = ledger.call("resume_brief", topic_id=tid)
-    assert list(fresh) == ["where_we_left_off", "recap_checks", "new_findings", "next_agenda_item"]
+    assert list(fresh) == [
+        "where_we_left_off",
+        "recap_checks",
+        "new_findings",
+        "weakened_claims",
+        "next_agenda_item",
+    ]
     assert fresh["next_agenda_item"] is None
     assert fresh["where_we_left_off"]["summary"] is None
     items = ledger.call("agenda_set", session_id=sid, topic_id=tid, facets=["A", "B", "C"])["items"]

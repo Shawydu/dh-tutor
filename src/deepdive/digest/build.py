@@ -91,6 +91,14 @@ class DigestBuilder:
             )
         if pairs:
             lines += ["## Connections across topics", "", *sorted(pairs), ""]
+        weak = [self.store.discoveries.finding(d) for d in self.store.discoveries.weakening()]
+        if weak:
+            rows = [
+                f'- {titles[f.topic_id]}: "{_one_line(f.target_text)}" weakened by'
+                f" {_one_line(f.summary)}\n  Resume: `/resume {titles[f.topic_id]} --item {f.id}`"
+                for f in sorted(weak, key=lambda f: (titles[f.topic_id], str(f.id)))
+            ]
+            lines += ["## Weakened claims", "", *rows, ""]
         # shortcut: end of the UTC day, not the local day; use a configured timezone if any
         end = datetime.combine(day, time.max, UTC)
         due = self.knowledge.list_due(end)
@@ -101,6 +109,6 @@ class DigestBuilder:
                 for s in due
             ]
             lines += ["## Recaps due", "", *rows, ""]
-        if not findings and not pairs and not due:
+        if not findings and not pairs and not due and not weak:
             lines += [NOTHING_NEW, ""]
         return "\n".join(lines)

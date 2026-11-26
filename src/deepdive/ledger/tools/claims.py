@@ -88,6 +88,14 @@ class ClaimTools(Tools):
             ]
         }
 
+    async def claim_set_status(self, claim_id: Id, status: ClaimStatus) -> dict[str, Any]:
+        """Clear a weakened claim after reviewing it with the user: set it open or established."""
+        if status == ClaimStatus.WEAKENED:
+            raise InvalidInputError("only a discovery can weaken a claim; give open or established")
+        if self.ctx.store.claims.require(claim_id).status != ClaimStatus.WEAKENED:
+            raise InvalidInputError("only a weakened claim can be cleared")
+        return self.ctx.store.claims.set_status(claim_id, status).model_dump(mode="json")
+
     async def evidence_add(
         self,
         session_id: Id,

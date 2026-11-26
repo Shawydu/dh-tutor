@@ -73,6 +73,11 @@ def test_digest_snapshot(store: Store, seed_topics: Seed, tmp_path: Path) -> Non
 
 - {topic}: "{store.questions.require(seed_topics.questions["commit_concurrent"]).clean_text}" ↔ Concurrency control in Python vs parallelism: "{store.questions.require(seed_topics.questions["locks_needed"]).clean_text}" (aspect)
 - {topic}: "{store.questions.require(seed_topics.questions["commit_concurrent"]).clean_text}" ↔ Concurrency control in Python vs parallelism: "{store.questions.require(seed_topics.questions["locks_needed"]).clean_text}" (concept: occ)
+
+## Weakened claims
+
+- {topic}: "{claim.text}" weakened by The spec allows a retry.
+  Resume: `/resume {topic} --item {weak.id}`
 """  # noqa: E501
     assert DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path).build(DAY) == expected
 
@@ -90,6 +95,9 @@ def test_read_discoveries_and_old_edges_drop_out(
     weak, strong = _discover(store, seed_topics)
     for d in (weak, strong):
         store.discoveries.mark_read(d.id, datetime(2026, 1, 1, tzinfo=UTC))
+    built = DigestBuilder(store, SqliteKnowledgeStore(store.db), tmp_path).build(DAY)
+    assert "## Weakened claims" in built and NOTHING_NEW not in built  # read, still weakened
+    store.claims.set_status(seed_topics.claims[0], ClaimStatus.OPEN)  # cleared: not listed
     (tmp_path / "2026-01-01.md").write_text("x")  # the edge was made 2026-01-01 06:00, so new
     assert "Connections across topics" in DigestBuilder(
         store, SqliteKnowledgeStore(store.db), tmp_path
@@ -142,7 +150,6 @@ def test_resume_with_item_marks_it_read(db: Database, store: Store, seed_topics:
 
     assert ids() == [str(strong.id), str(weak.id)]
     assert ids(item=weak.id) == [str(weak.id), str(strong.id)]
-    assert store.claims.require(seed_topics.claims[0]).status == ClaimStatus.OPEN
     assert ids() == [str(strong.id)]
     with pytest.raises(InvalidInputError):
         ids(item=seed_topics.sources["spec"])
@@ -168,21 +175,40 @@ def test_resume_lists_the_best_three_findings(
     assert [f["id"] for f in brief["new_findings"]] == [str(made[i].id) for i in (1, 3, 2)]
 
 
-@pytest.mark.parametrize(
-    ("which", "status"),
-    [(0, ClaimStatus.OPEN), (1, ClaimStatus.ESTABLISHED)],
-    ids=["weakens-reopens", "answers-leaves-claims"],
-)
-def test_opening_a_finding_marks_it_read_and_reopens_a_weakened_claim(
-    db: Database, store: Store, seed_topics: Seed, which: int, status: ClaimStatus
+def test_opening_a_finding_marks_it_read_and_leaves_a_weakened_claim(
+    db: Database, store: Store, seed_topics: Seed
 ) -> None:
-    """discovery_open marks the finding read; only a weakening one reopens its claim."""
-    found = _discover(store, seed_topics)[which]
-    got = asyncio.run(TopicTools(LedgerContext(db, Paths(Path(".")))).discovery_open(found.id))
-    opened = store.discoveries.get(found.id)
+    """discovery_open marks the finding read; the weakened claim stays weakened until cleared."""
+    weak = _discover(store, seed_topics)[0]
+    asyncio.run(TopicTools(LedgerContext(db, Paths(Path(".")))).discovery_open(weak.id))
+    opened = store.discoveries.get(weak.id)
     assert opened is not None and opened.read_at is not None
-    assert store.claims.require(seed_topics.claims[0]).status == status
-    assert (got["reopened_claim"] is not None) is (status == ClaimStatus.OPEN)
+    assert store.claims.require(seed_topics.claims[0]).status == ClaimStatus.WEAKENED
+
+
+def test_resume_lists_weakened_claims_until_cleared(
+    db: Database, store: Store, seed_topics: Seed
+) -> None:
+    """resume_brief lists a weakened claim with its latest weakening discovery, even once read,
+    until cleared."""
+    first = _discover(store, seed_topics)[0]
+    src = store.sources.register(
+        url="https://example.org/c", kind="blog", tier=3, seen_at=datetime(2026, 1, 1, tzinfo=UTC)
+    ).id
+    weak = store.discoveries.add(
+        first.probe_run_id, first.topic_id, src, DiscoveryTargetType.CLAIM, seed_topics.claims[0],
+        DiscoveryEffect.WEAKENS, 0.5, "A later retry report.",
+    )  # fmt: skip
+    for d in (first, weak):
+        store.discoveries.mark_read(d.id, datetime(2026, 1, 1, tzinfo=UTC))
+    topics = TopicTools(LedgerContext(db, Paths(Path("."))))
+    topic = seed_topics.topics["iceberg"]
+    got = asyncio.run(topics.resume_brief(topic))["weakened_claims"]
+    assert [(w["claim_id"], w["discovery_id"]) for w in got] == [
+        (str(seed_topics.claims[0]), str(weak.id))
+    ]
+    store.claims.set_status(seed_topics.claims[0], ClaimStatus.OPEN)
+    assert asyncio.run(topics.resume_brief(topic))["weakened_claims"] == []
 
 
 def test_digest_get_truncates_long_markdown(db: Database, tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from deepdive.store.enums import DiscoveryEffect, DiscoveryTargetType
+from deepdive.store.enums import ClaimStatus, DiscoveryEffect, DiscoveryTargetType
 from deepdive.store.errors import DuplicateSourceError, InvalidTargetError
 from deepdive.store.ids import new_id
 from deepdive.store.models import AgendaItem, Claim, Discovery, Finding, Question
@@ -75,6 +75,8 @@ class DiscoveryRepo(Repo[Discovery]):
                 (found_id, topic_id, probe_run_id, source_id, target_type, target_id, effect,
                  relevance, summary),
             )  # fmt: skip
+            if effect == DiscoveryEffect.WEAKENS and target_type == DiscoveryTargetType.CLAIM:
+                ClaimRepo(self.db).set_status(target_id, ClaimStatus.WEAKENED)
         found = self._one("WHERE id = ?", (found_id,))
         assert found is not None
         return found
@@ -100,6 +102,19 @@ class DiscoveryRepo(Repo[Discovery]):
             "JOIN probe_run r ON r.id = discovery.probe_run_id WHERE read_at IS NULL "
             f"{where}ORDER BY relevance DESC, discovery.id",
             tuple(params),
+        )
+
+    def weakening(self, topic_id: UUID | None = None) -> list[Discovery]:
+        """The latest weakens discovery on each weakened claim (of the topic, else of all)."""
+        # shortcut: "latest" is UUIDv7 id order (discovery has no created_at), which can tie
+        # across processes in one millisecond; add a created_at column if that ever matters
+        where = "AND discovery.topic_id = ? " if topic_id else ""
+        return self._many(
+            "JOIN claim c ON c.id = discovery.target_id WHERE c.status = 'weakened' "
+            "AND discovery.target_type = 'claim' AND discovery.effect = 'weakens' "
+            f"{where}AND NOT EXISTS (SELECT 1 FROM discovery d2 WHERE d2.target_id = c.id "
+            "AND d2.effect = 'weakens' AND d2.id > discovery.id) ORDER BY discovery.id",
+            (topic_id,) if topic_id else (),
         )
 
     def mark_read(self, discovery_id: UUID, at: datetime) -> None:

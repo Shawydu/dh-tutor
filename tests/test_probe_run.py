@@ -27,7 +27,7 @@ from deepdive.probe.agenda import AgendaEntry
 from deepdive.probe.lock import ProbeLock, ProbeLockedError
 from deepdive.probe.runner import ProbeRunner
 from deepdive.store.db import Database
-from deepdive.store.enums import QuestionAsker, TopicStatus
+from deepdive.store.enums import ClaimStatus, QuestionAsker, TopicStatus
 from deepdive.store.models import TopicOutcome
 from deepdive.store.repos import Store
 
@@ -110,6 +110,23 @@ def test_discovery_add_stores_relevance_and_effect(world: World) -> None:
     out = add(led, world)
     assert (out["effect"], out["relevance"], out["target_type"]) == ("weakens", 0.95, "question")
     assert led.count("discovery") == 1
+
+
+@pytest.mark.parametrize(
+    ("start", "effect", "want"),
+    [("established", "weakens", "weakened"), ("open", "weakens", "weakened"),
+     ("established", "supports", "established"), ("open", "answers", "open")],
+    ids=["established-weakened", "open-weakened", "supports-unchanged", "answers-unchanged"],
+)  # fmt: skip
+def test_only_a_weakening_discovery_marks_a_claim_weakened(
+    world: World, start: str, effect: str, want: str
+) -> None:
+    """A weakens discovery sets the claim weakened, text untouched; other effects change nothing."""
+    store = world.store
+    store.claims.set_status(world.claim, ClaimStatus(start))
+    add(ledger(world, effect=effect), world, target_type="claim", target_id=str(world.claim))
+    claim = store.claims.require(world.claim)
+    assert (claim.status, claim.text) == (want, "Commits are atomic")
 
 
 def test_discovery_add_below_threshold_writes_nothing(world: World) -> None:
