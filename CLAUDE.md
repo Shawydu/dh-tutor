@@ -2,11 +2,13 @@
 
 ## What we are building
 
-A local, single-user learning engine for software engineering topics. A user gives a topic; the engine scopes it into a charter, a guide agent walks through it interactively, student agents ask questions, a probe agent researches overnight, and a morning digest reports what changed. Full behaviour: `docs/design.md`. When this file and the design disagree, the design wins; flag the conflict.
+A local, single-user learning engine. Software engineering is the first domain pack; others (kids' science first) are welcome on the same rules. A user gives a topic; the engine scopes it into a charter, a guide agent walks through it interactively, student agents ask questions, a probe agent researches overnight, and a morning digest reports what changed. Full behaviour: `docs/design.md`. When this file and the design disagree, the design wins; flag the conflict.
+
+**Vision:** `STRATEGY.md` → Vision is the acceptance policy. Hold every change to its "aligns" and "resisted" tests. When the design or a task disagrees with the vision, the vision wins; flag the conflict and propose an edit.
 
 ## Architecture in one paragraph
 
-`deepdive` is one Python package. The **engine** owns everything stateful: the SQLite store, the ledger MCP server, the question matcher, classification (Jev first, Claude fallback), web search and fetch, the scheduler, the digest and the POC sandbox. **Agent tools** (Claude Code first) are swappable brains that reach the engine only through MCP tools and hooks. Nothing in `src/deepdive/` outside `adapters/` may import or assume Claude Code.
+`deepdive` is one Python package. The **engine** owns everything stateful: the SQLite store, the ledger MCP server, the question matcher, classification (Jev first, Claude fallback), web search and fetch, the scheduler, the digest and the POC sandbox. **Agent tools** (Claude Code first) are swappable brains that reach the engine only through MCP tools and hooks. **Interfaces** (the terminal first, local HTML views later) are clients of the engine too: a view reads and writes through the same engine tools an agent calls. Nothing in `src/deepdive/` outside `adapters/` may import or assume Claude Code.
 
 ## Invariants (never break these)
 
@@ -14,7 +16,7 @@ A local, single-user learning engine for software engineering topics. A user giv
 2. A claim, evidence row or discovery must cite a `source.id` that exists. The engine refuses the write otherwise.
 3. Question matching is an engine step (hook or tool), not a prompt instruction.
 4. Child topics are one level deep. The store enforces it, not the prompt.
-5. Search and fetch go through the engine's allowlist and budget counter.
+5. Search and fetch go through the engine's allowlist and budget counter. An agent tool's built-in search is allowed only behind a hook that counts each call against that budget, and a result from outside the allowlist can never be registered as a source.
 6. Secrets (the Jev key) stay in engine config or env vars and never appear in prompts, logs or MCP results.
 7. The classifier is behind `classify.base.Classifier`. No caller imports a provider directly.
 8. The knowledge store is behind `knowledge.store.KnowledgeStore`, so SQLite can be swapped later.
