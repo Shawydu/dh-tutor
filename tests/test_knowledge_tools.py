@@ -73,3 +73,11 @@ def test_resume_brief_asks_for_at_most_two_due_concepts_of_the_topic(ledger: Led
     names = [r["concept"] for r in ledger.call("resume_brief", topic_id=mine)["recap_checks"]]
     assert len(names) == 2
     assert set(names) <= {"a", "b", "c"}
+
+
+def test_self_rate_works_with_grading_off(ledger: Ledger) -> None:
+    """A session with grading off does not stop self_rate from rating a concept."""
+    tid = _topic(ledger, "py", ["gil"])
+    sid = ledger.call("session_start", topic_id=tid)["id"]
+    ledger.call("session_grading_set", session_id=sid, on=False)
+    assert "error" not in ledger.call("self_rate", concept="gil", level=3)

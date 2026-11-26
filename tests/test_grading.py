@@ -160,3 +160,19 @@ def test_a_guide_question_is_graded_as_a_recap_check(tmp_path: Path) -> None:
         "answer_grade_set", question_id=qid, grade="wrong", confidence=1, session_id=sid
     )
     assert again["error"] == "invalid_input"
+
+
+@pytest.mark.parametrize("tool", ["answer_grade", "answer_grade_set"])
+def test_grading_off_refuses_grades_until_switched_back_on(tmp_path: Path, tool: str) -> None:
+    """With session grading off both grade tools refuse and store nothing; back on, they grade."""
+    ledger = _ledger(tmp_path)
+    _, sid, qid = _question(ledger)
+    ledger.call("rubric_write", question_id=qid, key_points=KEY_POINTS, misconceptions=[])
+    args = {"answer_text": "a"} if tool == "answer_grade" else {"grade": "correct", "confidence": 1}
+    assert ledger.call("session_grading_set", session_id=sid, on=False)["grading"] is False
+    got = ledger.call(tool, question_id=qid, session_id=sid, **args)
+    assert got["error"] == "invalid_input"
+    assert "session_grading_set" in got["detail"]
+    assert ledger.count("knowledge_evidence") == 0
+    assert ledger.call("session_grading_set", session_id=sid, on=True)["grading"] is True
+    assert ledger.call(tool, question_id=qid, session_id=sid, **args)["evidence"] == 2

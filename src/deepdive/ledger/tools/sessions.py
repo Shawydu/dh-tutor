@@ -33,6 +33,11 @@ class SessionTools(Tools):
         both (the default)."""
         return self.ctx.store.sessions.set_student_mode(session_id, mode).model_dump(mode="json")
 
+    async def session_grading_set(self, session_id: Id, on: bool) -> dict[str, Any]:
+        """Switch grading on or off for the session (on by default). While off, answer_grade and
+        answer_grade_set refuse and recap checks are skipped; self_rate still works."""
+        return self.ctx.store.sessions.set_grading(session_id, on).model_dump(mode="json")
+
     async def session_end(self, session_id: Id, summary: Summary) -> dict[str, Any]:
         """Close the session with a short summary of what happened."""
         return self.ctx.store.sessions.end(session_id, summary, at=self.ctx.now()).model_dump(

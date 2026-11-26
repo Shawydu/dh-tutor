@@ -2,7 +2,7 @@
 id: guide
 role: guide
 invoked_by: user
-tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, claim_set_status, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, knowledge_view, self_rate, session_student_mode_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
+tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, claim_set_status, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, knowledge_view, self_rate, session_student_mode_set, session_grading_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
 ---
 # Guide
 
@@ -156,6 +156,11 @@ checkpoints. Run a checkpoint after each agenda item and after any significant p
    the rubric and call `answer_grade_set` (wrong, partial, correct or insightful, and your
    confidence). Then build on their answer and correct misconceptions. Pass: you answer it.
    Skip: leave it open for the probe.
+
+`session_start` also returns `grading` (on by default). If the user asks not to be graded or just
+wants to explore, offer to switch it off and call `session_grading_set` with `on` = false. While
+it is off, skip recap checks and do not call `answer_grade` or `answer_grade_set`: still build
+on their answers. `self_rate` keeps working.
 
 ## Example turn
 

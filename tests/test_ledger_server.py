@@ -27,7 +27,7 @@ TOOLS = {
     "topic_overview", "resume_brief", "topic_recap", "recap_save", "digest_get",
     "charter_write", "charter_get",
     "session_start", "session_bookmark", "session_end", "session_attach",
-    "session_student_mode_set",
+    "session_student_mode_set", "session_grading_set",
     "agenda_set", "agenda_next", "agenda_done",
     "source_register", "claim_add", "claim_list", "claim_set_status", "evidence_add",
     "evidence_list",

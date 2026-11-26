@@ -144,6 +144,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             "0010_concepts",
             "0011_knowledge_level_real",
             "0012_session_student_mode",
+            "0013_session_grading",
         ]
         assert db.migrate() == []
         assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
@@ -159,6 +160,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             (10, "0010_concepts"),
             (11, "0011_knowledge_level_real"),
             (12, "0012_session_student_mode"),
+            (13, "0013_session_grading"),
         ]
 
 
@@ -226,7 +228,7 @@ def test_rebuilding_session_keeps_existing_rows_and_their_children(tmp_path: Pat
             " VALUES (?, ?, ?, 'user', 'q?', 'q')",
             (question, topic, session),
         )
-        assert db.migrate()[-1] == "0012_session_student_mode"
+        assert db.migrate()[:2] == ["0012_session_student_mode", "0013_session_grading"]
         assert db.conn.execute("SELECT id, student_mode FROM session").fetchall() == [
             (UUID(session), "both")
         ]

@@ -88,8 +88,13 @@ class GradingTools(Tools):
     def _check(self, question_id: Id, session_id: Id) -> tuple[Question, Rubric, list[Concept]]:
         store = self.ctx.store
         question = store.questions.require(question_id)
-        if store.sessions.require(session_id).topic_id != question.topic_id:
+        session = store.sessions.require(session_id)
+        if session.topic_id != question.topic_id:
             raise InvalidInputError("session_id must be a session of the question's topic")
+        if not session.grading:
+            raise InvalidInputError(
+                "grading is off for this session; call session_grading_set to turn it on"
+            )
         rubric = store.rubrics.get(question_id)
         if rubric is None:
             raise InvalidInputError("the question has no rubric: call rubric_write first")

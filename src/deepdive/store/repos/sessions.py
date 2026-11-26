@@ -52,6 +52,11 @@ class SessionRepo(IdRepo[Session]):
         self.conn.execute("UPDATE session SET student_mode = ? WHERE id = ?", (mode, session_id))
         return self.require(session_id)
 
+    def set_grading(self, session_id: UUID, on: bool) -> Session:
+        self.require(session_id)
+        self.conn.execute("UPDATE session SET grading = ? WHERE id = ?", (on, session_id))
+        return self.require(session_id)
+
     def end(self, session_id: UUID, summary: str, *, at: datetime) -> Session:
         self.require(session_id)
         self.conn.execute(
