@@ -5,22 +5,15 @@ from pathlib import Path
 import pytest
 from replay import assert_dive_intake_state
 
+from live.journeys import dive_intake
 from live.session import Session
-
-TOPIC = "/dive Python list comprehensions"
-CONTEXT = "I know basic Python loops. I want to read other people's code more easily."
-CHARTER = (
-    "Just curiosity. Core question: when to use one instead of a for loop. Skip generators for "
-    "now. Search term: Python. Done when I can rewrite a loop as a comprehension. "
-    "That charter looks good, please save it."
-)
 
 
 @pytest.mark.live
 def test_dive_intake_ends_scoping_with_a_charter(home: Path) -> None:
     """`/dive` plus scoping answers creates a topic and an open session, then writes a charter."""
     session = Session(home, "dive-intake", max_turns=25)
-    turns = [session.turn(text) for text in (TOPIC, CONTEXT, CHARTER)]
+    turns = dive_intake(session)
     calls = [c for t in turns for c in t.tool_calls]
     for name in ("topic_create", "session_start", "charter_write"):
         made = [c for c in calls if c.name == f"mcp__deepdive__{name}"]
