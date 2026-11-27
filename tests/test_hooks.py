@@ -53,11 +53,15 @@ def paths(tmp_path: Path) -> Paths:
     return p
 
 
-def attach(paths: Paths, *, ended: bool = False) -> None:
-    """One topic with an open (or ended) session attached to AGENT."""
+def attach(paths: Paths, *, ended: bool = False, charter: bool = True) -> None:
+    """One topic (chartered unless told otherwise) with an open (or ended) session on AGENT."""
     with Database(paths.db) as db:
         store = Store(db)
         topic = store.topics.create("GIL")
+        if charter:
+            store.charters.write(
+                topic.id, core_questions=["what is the GIL?"], in_scope=[], parked=[], done_when="x"
+            )
         now = clock.now()
         session = store.sessions.start(topic.id, at=now)
         if ended:
@@ -82,18 +86,22 @@ def test_user_prompt_prints_the_nested_context(paths: Paths) -> None:
 
 
 @pytest.mark.parametrize(
-    ("prompt", "session_id", "ended"),
+    ("prompt", "session_id", "ended", "charter"),
     [
-        ("what is the GIL?", str(uuid4()), False),
-        ("what is the GIL?", AGENT, True),
-        ("/resume GIL", AGENT, False),
-        ("   ", AGENT, False),
+        ("what is the GIL?", str(uuid4()), False, True),
+        ("what is the GIL?", AGENT, True, True),
+        ("what is the GIL?", AGENT, False, False),
+        ("/resume GIL", AGENT, False, True),
+        ("   ", AGENT, False, True),
+        ("<task-notification> <task-id>a1</task-id> done", AGENT, False, True),
     ],
-    ids=["not-attached", "session-ended", "slash-command", "blank"],
+    ids=["not-attached", "session-ended", "no-charter", "slash-command", "blank", "agent-notice"],
 )
-def test_user_prompt_stays_silent(paths: Paths, prompt: str, session_id: str, ended: bool) -> None:
+def test_user_prompt_stays_silent(
+    paths: Paths, prompt: str, session_id: str, ended: bool, charter: bool
+) -> None:
     """Nothing to add: no output, and nothing stored."""
-    attach(paths, ended=ended)
+    attach(paths, ended=ended, charter=charter)
     assert Hooks(paths, Raising()).user_prompt(payload(prompt, session_id)) == ""
     with Database(paths.db) as db:
         assert db.conn.execute("SELECT COUNT(*) FROM question").fetchone() == (0,)
@@ -153,6 +161,10 @@ def test_attach_through_the_mcp_tool_then_the_hook_finds_the_topic(tmp_path: Pat
     ledger = Ledger(create_server(paths, classifier=Fixed()), paths)
     tid, sid = _session(ledger)
     ledger.call("session_attach", session_id=sid, agent_session_id=AGENT)
+    ledger.call(
+        "charter_write", session_id=sid, topic_id=tid, core_questions=["what is the GIL?"],
+        in_scope=[], parked=[], done_when="x",
+    )  # fmt: skip
     out = json.loads(Hooks(paths, Fixed()).user_prompt(payload("what is the GIL?")))
     assert out["hookSpecificOutput"]["additionalContext"]
     with Database(paths.db) as db:

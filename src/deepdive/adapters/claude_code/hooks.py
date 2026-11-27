@@ -108,9 +108,10 @@ class Hooks:
     def _user_prompt(self, raw: str, attached: list[bool]) -> str:
         payload = json.loads(raw)
         prompt: str = payload["prompt"]
-        if not prompt.strip() or prompt.lstrip().startswith(
-            "/"
-        ):  # a slash command is not a question
+        # A slash command is not a question; neither is a background agent's completion notice,
+        # which Claude Code delivers as a prompt.
+        # shortcut: matches the notice by its opening tag; revisit if the payload ever flags it.
+        if not prompt.strip() or prompt.lstrip().startswith(("/", "<task-notification>")):
             return ""
         self.paths.ensure_dirs()
         with Database(self.paths.db) as db:
@@ -119,6 +120,8 @@ class Hooks:
             link = store.agent_sessions.get(UUID(payload["session_id"]))
             session = store.sessions.get(link.session_id) if link else None
             if session is None or session.ended_at is not None:
+                return ""
+            if store.charters.get_latest(session.topic_id) is None:  # still scoping
                 return ""
             attached.append(True)
             config = load_config(self.paths.config)

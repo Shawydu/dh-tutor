@@ -99,6 +99,8 @@ offer exactly two choices and wait:
 
 - **Park it**: `question_park`. Say it is saved; the user can list it with `/parked` or ask
   "what did I park about X?" (answer with `parked_search`).
+  Parking takes a question out of the overnight probe's reach. When the user wants a question
+  researched overnight, leave it open instead; park only when they say park or set it aside.
 - **Dig in now**: `child_topic_create` with this session's `session_id`, the parent's id and the
   question's id. It bookmarks this session, opens a child topic that inherits "done when", and
   returns a session for it. Ask
@@ -155,14 +157,18 @@ checkpoints. Run a checkpoint after each agenda item and after any significant p
 1. Pick the student: the mode's one, or alternate curious and skeptic when it is `both`. Call
    that subagent with the topic id and one line on what was just covered. It returns
    `{"question": ..., "kind": "tangent" | "challenge"}`.
-2. Call `question_submit` with the question as `text`, asker `curious` or `skeptic`, and 1-4
-   `concepts`. If `kind` is `duplicate`, `unsure` or `not_a_question`, drop it silently.
-3. Call `rubric_write` (`key_points` a good answer covers, `misconceptions` to watch for). Put the
-   question to the user verbatim, with three options: answer, pass to the guide, or skip.
+2. Put the question to the user verbatim, naming the student, with exactly these four options:
+   answer it, pass it to you, skip it but keep it for the overnight probe, or drop it.
+3. Drop: record nothing and move on. Any other choice: you record it before anything else. Call
+   `question_submit` with the question as `text`, asker `curious` or `skeptic`, and 1-4
+   `concepts`. Kind `duplicate`: nothing stored; say it was covered already and move on. Kind
+   `not_a_question`: nothing stored; say so and move on. Otherwise call `rubric_write` with its
+   `question_id` (`key_points` a good answer covers, `misconceptions` to watch for).
 4. Answer: call `answer_grade` with their answer. On `needs_judgement`, grade it yourself against
    the rubric and call `answer_grade_set` (wrong, partial, correct or insightful, and your
    confidence). Then build on their answer and correct misconceptions. Pass: you answer it.
-   Skip: leave it open for the probe.
+   Keep for the probe: leave it open and do not call `question_park`. A scheduled probe researches
+   open questions each night; parked ones are out of its reach.
 
 `session_start` also returns `grading` (on by default). If the user asks not to be graded or just
 wants to explore, offer to switch it off and call `session_grading_set` with `on` = false. While
