@@ -132,18 +132,17 @@ def test_bad_stdin_is_swallowed(paths: Paths) -> None:
 
 
 def test_session_start_brief(paths: Paths) -> None:
-    """The brief lists the recent topic, a /resume hint, and the agent_session_id line."""
+    """The brief lists the recent topic and a /resume hint."""
     attach(paths)
     out = Hooks(paths).session_start(json.dumps({"session_id": AGENT, "source": "startup"}))
     assert "- GIL" in out and "/resume GIL" in out
-    assert out.splitlines()[-1] == f"agent_session_id: {AGENT}"
 
 
 def test_fresh_home_gives_the_empty_brief_and_silent_prompts(tmp_path: Path) -> None:
     """A home never touched by the MCP server: a no-topics brief, and no per-prompt error."""
     fresh = Paths(tmp_path / "new")
     out = Hooks(fresh).session_start(json.dumps({"session_id": AGENT}))
-    assert "no topics yet" in out and out.endswith(f"agent_session_id: {AGENT}")
+    assert "no topics yet" in out
     assert Hooks(fresh, Raising()).user_prompt(payload("what is the GIL?")) == ""
     assert not (fresh.logs / "hooks.log").exists()
 
@@ -167,7 +166,7 @@ def test_cli_hooks_read_stdin_and_print(paths: Paths, monkeypatch: pytest.Monkey
     monkeypatch.setenv("DEEPDIVE_HOME", str(paths.root))
     runner = CliRunner()
     brief = runner.invoke(app, ["hook", "session-start"], input=json.dumps({"session_id": AGENT}))
-    assert brief.exit_code == 0 and brief.output.strip().endswith(f"agent_session_id: {AGENT}")
+    assert brief.exit_code == 0 and "no topics yet" in brief.output
     quiet = runner.invoke(app, ["hook", "user-prompt"], input=payload("hi"))
     assert (quiet.exit_code, quiet.output) == (0, "")
 
@@ -203,6 +202,28 @@ def test_pre_tool_denies_without_an_engine_session(paths: Paths) -> None:
     """An unattached Claude session cannot search: the reason says to start a session."""
     out = pre_tool(paths, session_id=str(uuid4()))
     assert out["permissionDecision"] == "deny" and "/dive" in out["permissionDecisionReason"]
+
+
+def test_post_tool_attaches_the_session_so_the_next_web_call_is_allowed(paths: Paths) -> None:
+    """PostToolUse on session_start links Claude's session to the engine session it opened."""
+    ledger = Ledger(create_server(paths), paths)
+    sid = _session(ledger)[1]
+    started = json.dumps({"id": sid, "student_mode": "both"})  # Claude passes the result as text
+    raw = json.dumps({"session_id": AGENT, "tool_name": "mcp__deepdive__session_start",
+                      "tool_response": started})  # fmt: skip
+    assert Hooks(paths).post_tool(raw) == ""
+    assert pre_tool(paths)["permissionDecision"] == "allow"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["not json", json.dumps({"session_id": AGENT, "tool_response": {"id": "x"}})],
+    ids=["malformed-json", "unexpected-response-shape"],
+)
+def test_post_tool_never_raises_and_logs(paths: Paths, raw: str) -> None:
+    """A payload the hook cannot read returns empty output and logs the failure."""
+    assert Hooks(paths).post_tool(raw) == ""
+    assert "post-tool" in (paths.logs / "hooks.log").read_text()
 
 
 @pytest.mark.parametrize("case", ["unknown-tool", "ended-session", "malformed-json"])

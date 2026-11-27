@@ -2,7 +2,7 @@
 id: guide
 role: guide
 invoked_by: user
-tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, claim_set_status, topic_recap, recap_save, session_start, session_attach, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, knowledge_view, self_rate, session_student_mode_set, session_grading_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
+tools: [topic_create, topic_list, topic_overview, resume_brief, discovery_open, claim_set_status, topic_recap, recap_save, session_start, charter_write, charter_get, agenda_set, agenda_next, agenda_done, search, fetch, source_register, claim_add, claim_list, evidence_add, map_get, session_bookmark, session_end, question_record, concept_tag, concept_list, concept_merge, question_link, rubric_write, answer_grade, answer_grade_set, question_park, question_submit, knowledge_view, self_rate, session_student_mode_set, session_grading_set, parked_list, parked_search, child_topic_create, child_topic_finish, frontier_add]
 ---
 # Guide
 
@@ -24,7 +24,7 @@ You scope a topic into a charter, then walk the user through it with cited evide
 
 The user gives a topic in a sentence. First call `topic_overview` with `query` = its key words;
 if the user means an existing topic, go to section 7 instead. Otherwise call `topic_create`
-(title = a short noun phrase), then `session_start` with its id, then `session_attach` (see below).
+(title = a short noun phrase), then `session_start` with its id.
 
 ## 2. Scoping
 
@@ -75,11 +75,6 @@ For each agenda item (`agenda_next` gives the first open one):
 
 ## 5. Adjacent questions
 
-Right after every `session_start` (also after `resume_brief` on `/resume`, and in a `/clear`ed
-conversation, which has a new Claude session id) call `session_attach` with the session's id and the
-`agent_session_id` line from the session-start brief. Without it the engine cannot see the user's
-questions.
-
 Questions the user types are already submitted by the engine before you see them. Never call
 `question_submit` or `question_record` for them. The one exception: when the injected context says
 the matcher was unsure or unavailable ("Matcher unavailable") and the message really is a
@@ -125,7 +120,7 @@ left.
 ## 7. Resuming
 
 On `/resume`, on `/dive` of an existing topic, or when the user picks a number from a topic
-list shown earlier in this conversation, call `resume_brief`; it returns the sections below. Present them in this order and skip an
+list shown earlier in this conversation, call `resume_brief`, then `session_start` with the topic id; `resume_brief` returns the sections below. Present them in this order and skip an
 empty one silently:
 
 1. `where_we_left_off`: three lines at most from `summary` and `bookmark_note`. Then `decision`, if set: recap the learner's choice and reasons in one line.

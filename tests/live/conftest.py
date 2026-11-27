@@ -1,8 +1,11 @@
 import os
+import re
+import shutil
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+
 from live.session import Session, make_home
 
 
@@ -16,9 +19,13 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 
 @pytest.fixture
-def home(tmp_path: Path) -> Path:
-    """A throwaway DEEPDIVE_HOME with the workspace installed."""
-    return make_home(tmp_path)
+def home(tmp_path: Path) -> Iterator[Path]:
+    """A throwaway DEEPDIVE_HOME with the workspace installed; its Claude project goes after."""
+    home = make_home(tmp_path)
+    yield home
+    # Claude Code names the project folder after the resolved cwd, non-alphanumerics as "-"
+    encoded = re.sub(r"[^A-Za-z0-9]", "-", str((home / "workspace").resolve()))
+    shutil.rmtree(Path.home() / ".claude" / "projects" / encoded, ignore_errors=True)
 
 
 @pytest.fixture

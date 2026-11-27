@@ -158,8 +158,11 @@ class Workspace:
                 "hooks": {
                     # Claude Code's limit sits above the hook's own 8 s cut-off
                     "UserPromptSubmit": [{"hooks": [hook("user-prompt", timeout=10)]}],
-                    # /clear and /resume start a new Claude session id the guide must re-attach
                     "PreToolUse": [{"matcher": "|".join(WEB), "hooks": [hook("pre-tool")]}],
+                    # every session_start (also after /clear or /resume) links the Claude session
+                    "PostToolUse": [
+                        {"matcher": "mcp__deepdive__session_start", "hooks": [hook("post-tool")]}
+                    ],
                     "SessionStart": [
                         {"matcher": "startup|resume|clear", "hooks": [hook("session-start")]}
                     ],

@@ -45,9 +45,8 @@ class SessionTools(Tools):
         )
 
     async def session_attach(self, session_id: Id, agent_session_id: Id) -> dict[str, Any]:
-        """Link your agent session id (from the session-start brief) to this open session, so
-        the question hook finds the topic. Call right after session_start, and again after
-        /resume or /clear."""
+        """Link an agent session id to this open session, so the question hook finds the topic.
+        Claude Code's PostToolUse hook does this after session_start; other adapters call it."""
         if self.ctx.store.sessions.require(session_id).ended_at is not None:
             raise InvalidInputError("the session has ended")
         return self.ctx.store.agent_sessions.attach(

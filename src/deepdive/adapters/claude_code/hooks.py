@@ -57,13 +57,7 @@ class Hooks:
 
     def session_start(self, raw: str) -> str:
         """The plain-text brief for a SessionStart payload."""
-        try:
-            agent_id = str(UUID(json.loads(raw)["session_id"]))
-        except Exception as exc:
-            self._log("session-start", type(exc).__name__)
-            return ""
-        line = f"agent_session_id: {agent_id}"
-        return self._guarded("session-start", lambda: f"{self._brief()}\n{line}") or line
+        return self._guarded("session-start", self._brief)
 
     def pre_tool(self, raw: str) -> str:
         """The PreToolUse decision for the built-in web tools: WebSearch counts against the
@@ -95,6 +89,21 @@ class Hooks:
         except Exception as exc:
             self._log("pre-tool", type(exc).__name__)
             return _decision(False, "deepdive could not check the search budget.")
+
+    def post_tool(self, raw: str) -> str:
+        """PostToolUse for session_start: link Claude's session to the engine session it opened."""
+        try:
+            payload = json.loads(raw)
+            engine_id = UUID(json.loads(payload["tool_response"])["id"])
+            self.paths.ensure_dirs()
+            with Database(self.paths.db) as db:
+                db.migrate()
+                Store(db).agent_sessions.attach(
+                    UUID(payload["session_id"]), engine_id, at=clock.now()
+                )
+        except Exception as exc:
+            self._log("post-tool", type(exc).__name__)
+        return ""
 
     def _user_prompt(self, raw: str, attached: list[bool]) -> str:
         payload = json.loads(raw)

@@ -2,7 +2,7 @@
 
 A journey is a scripted learner driving a real Claude Code session through the engine, in a throwaway `DEEPDIVE_HOME`. It replaces a task's manual check. Each journey is a live test under `tests/live/` (see [guide 04](../guides/04-testing.md)) and a story here.
 
-Run: `DEEPDIVE_LIVE=1 uv run pytest -m live tests/live -k <journey>`. Every run spends the Claude subscription. `DEEPDIVE_LIVE_MODEL` sets the model (default `haiku`); `DEEPDIVE_LIVE_SNAPSHOT=<db>` starts from a copy of a database.
+Run: `DEEPDIVE_LIVE=1 uv run pytest -m live tests/live -k <journey>`. Every run spends the Claude subscription. `DEEPDIVE_LIVE_MODEL` sets the model (default `haiku`); `DEEPDIVE_LIVE_SNAPSHOT=<db>` starts from a copy of a database. Live runs remove their Claude Code project folder (`~/.claude/projects/...`) on teardown.
 
 ## Story template
 

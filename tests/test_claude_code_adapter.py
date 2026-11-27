@@ -40,6 +40,12 @@ def test_init_writes_the_locked_down_workspace(tmp_path: Path) -> None:
                 "hooks": [{"type": "command", "command": f"{run} pre-tool"}],
             }
         ],
+        "PostToolUse": [
+            {
+                "matcher": "mcp__deepdive__session_start",
+                "hooks": [{"type": "command", "command": f"{run} post-tool"}],
+            }
+        ],
         "SessionStart": [
             {
                 "matcher": "startup|resume|clear",

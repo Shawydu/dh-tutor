@@ -78,9 +78,17 @@ def hook_pre_tool() -> None:
     typer.echo(Hooks(Paths.from_env()).pre_tool(sys.stdin.read()))
 
 
+@hook_app.command("post-tool")
+def hook_post_tool() -> None:
+    """PostToolUse for session_start: attach the Claude session to the new engine session."""
+    from deepdive.adapters.claude_code.hooks import Hooks
+
+    Hooks(Paths.from_env()).post_tool(sys.stdin.read())
+
+
 @hook_app.command("session-start")
 def hook_session_start() -> None:
-    """SessionStart: print the topic brief and the agent_session_id line. Never fails."""
+    """SessionStart: print the topic brief. Never fails."""
     from deepdive.adapters.claude_code.hooks import Hooks
 
     out = Hooks(Paths.from_env()).session_start(sys.stdin.read())

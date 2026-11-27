@@ -46,6 +46,9 @@ The adapter writes the absolute path of your deepdive checkout. MCP tools appear
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command", "command": "uv run --project /ABS/PATH deepdive hook user-prompt", "timeout": 10 } ] }
     ],
+    "PostToolUse": [
+      { "matcher": "mcp__deepdive__session_start", "hooks": [ { "type": "command", "command": "uv run --project /ABS/PATH deepdive hook post-tool" } ] }
+    ],
     "SessionStart": [
       { "matcher": "startup|resume|clear", "hooks": [ { "type": "command", "command": "uv run --project /ABS/PATH deepdive hook session-start" } ] }
     ]
@@ -56,6 +59,8 @@ The adapter writes the absolute path of your deepdive checkout. MCP tools appear
 The workspace denies built-in web, shell, file-read and file-editing tools. The guide reaches the web only through `mcp__deepdive__search` and `mcp__deepdive__fetch`, which apply the allowlist and budget. The POC builder is the exception and will get its own rules.
 
 ## Hooks: how the engine intercepts questions
+
+- **PostToolUse** on `mcp__deepdive__session_start` attaches Claude's `session_id` to the engine session in the tool result, so the guide never calls `session_attach`. UserPromptSubmit and PreToolUse then see the link; SessionStart runs before it and only prints the topic brief.
 
 - **UserPromptSubmit** fires before Claude processes each message. Claude Code passes JSON on stdin with common fields (`session_id`, `cwd`, ...) and the `prompt` text. The hook prints JSON to inject context:
 
