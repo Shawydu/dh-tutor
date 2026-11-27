@@ -64,7 +64,7 @@ A failing journey is fixed by a tighter tool contract or engine rule, never by t
 A live run's recorded transcript may become a fixture that the offline suite replays against a fresh database with no model.
 Live and migration tests may start from a snapshot of the learner's own database, kept outside the repo and never committed.
 A bug found in a real run is pinned by a test at the lowest layer that can reproduce it, such as a migration run against a populated database.
-An established Python eval framework may run the live suite as a dev dependency, rather than a hand-rolled runner.
+The live suite runs on pytest with no eval framework.
 Schema conventions (UUID ids, UTC timestamps, enum lookup tables) are checked by a test, and applied migrations are never edited.
 A shortcut with a known limit is labelled in the code so it can be found later.
 
