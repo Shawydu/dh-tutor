@@ -12,7 +12,7 @@ from deepdive.ledger.tools._common import Tools
 from deepdive.search.arxiv import Arxiv
 from deepdive.search.base import TIER_KEY, SearchProvider, SearchResult
 from deepdive.search.cache import Cache
-from deepdive.search.fetch import Fetcher, FetchError
+from deepdive.search.fetch import Fetcher, FetchError, check_url
 from deepdive.search.github import GitHub
 from deepdive.search.hn import HackerNews
 
@@ -53,6 +53,13 @@ class WebTools(Tools):
         )
         return str(row.id)
 
+    def _register_result(self, r: SearchResult, session_id: Id | None) -> str | None:
+        try:
+            check_url(r.url, self.pack.fetch_allowlist)
+        except FetchError:
+            return None  # e.g. a Hacker News story's external link: never registered
+        return self._source_id(r.url, TIER_KEY[r.kind], session_id)
+
     def _spent(self, kind: Literal["search", "fetch"], session_id: Id | None) -> bool:
         """Count one call against the budget; True when the budget is already used up."""
         if probe := self.ctx.probe:
@@ -80,6 +87,9 @@ class WebTools(Tools):
         session_id: Id | None = None,
     ) -> dict[str, Any]:
         """Search GitHub, arXiv and Hacker News; each result carries a citable source_id.
+
+        A result off the domain allowlist has source_id null and can't be cited unless the
+        agent opens it with WebFetch.
 
         query: 1-4 keywords every result must match (the topic name), never a sentence.
         optional: a few more keywords that rank results but may be missing.
@@ -115,10 +125,7 @@ class WebTools(Tools):
                     continue
                 results += found
         out = [
-            {
-                **r.model_dump(mode="json"),
-                "source_id": self._source_id(r.url, TIER_KEY[r.kind], session_id),
-            }
+            {**r.model_dump(mode="json"), "source_id": self._register_result(r, session_id)}
             for r in results
         ]
         left = (

@@ -173,7 +173,9 @@ def test_cli_hooks_read_stdin_and_print(paths: Paths, monkeypatch: pytest.Monkey
 
 
 def pre_tool(paths: Paths, tool: str = "WebSearch", session_id: str = AGENT) -> dict[str, str]:
-    raw = json.dumps({"session_id": session_id, "tool_name": tool, "tool_input": {}})
+    raw = json.dumps(
+        {"session_id": session_id, "tool_name": tool, "tool_input": {"url": "https://x.dev"}}
+    )
     return json.loads(Hooks(paths).pre_tool(raw))["hookSpecificOutput"]  # type: ignore[no-any-return]
 
 
@@ -230,3 +232,23 @@ def test_engine_search_and_the_hook_share_one_counter(tmp_path: Path) -> None:
     assert pre_tool(paths)["permissionDecision"] == "allow"
     assert ledger.call("search", query="gil2", session_id=sid)["error"] == "budget_exhausted"
     assert pre_tool(paths)["permissionDecision"] == "deny"
+
+
+def test_webfetch_makes_an_off_allowlist_page_citable_for_that_session_only(paths: Paths) -> None:
+    """The hook records a WebFetch url; source_register then accepts it for that session only."""
+    url = "https://blog.example.com/post"
+    ledger = Ledger(create_server(paths), paths)
+    topic = ledger.call("topic_create", title="GIL")["id"]
+    mine = ledger.call("session_start", topic_id=topic)["id"]
+    other = ledger.call("session_start", topic_id=topic)["id"]
+    with Database(paths.db) as db:
+        Store(db).agent_sessions.attach(UUID(AGENT), UUID(mine), at=clock.now())
+    register = {"url": url, "kind": "blog", "tier": 3}
+    assert ledger.call("source_register", session_id=mine, **register)["error"] == "invalid_input"
+    raw = json.dumps({"session_id": AGENT, "tool_name": "WebFetch", "tool_input": {"url": url}})
+    assert (
+        json.loads(Hooks(paths).pre_tool(raw))["hookSpecificOutput"]["permissionDecision"]
+        == "allow"
+    )
+    assert "id" in ledger.call("source_register", session_id=mine, **register)
+    assert ledger.call("source_register", session_id=other, **register)["error"] == "invalid_input"

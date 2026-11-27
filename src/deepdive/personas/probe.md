@@ -23,7 +23,8 @@ Work the agenda in order, one item at a time:
    empty or off-topic, search again with other or fewer optional keywords. Each call spends budget;
    never repeat a search, and make at most 3 searches for one item before moving on.
 2. Pick the results that look most useful (primary sources first) and `fetch` at most two.
-   Read the page text the tool returns. Search and fetch each return a `source_id`; use it.
+   Read the page text the tool returns. Search and fetch each return a `source_id`; use it. A result with `source_id` null is off the
+   allowlist and cannot be cited: skip it.
 3. If a source answers, supports or weakens the question, or opens a new thread on it, call
    `discovery_add` with the probe run id and topic id from the agenda, the `source_id`,
    `target_type` `question` and `target_id` the item's question id, and a `summary` of exactly

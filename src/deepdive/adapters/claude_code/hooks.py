@@ -85,6 +85,12 @@ class Hooks:
                     session.id, limit
                 ):
                     return _decision(False, f"Search budget spent ({limit} per session).")
+                if payload.get("tool_name") == "WebFetch":
+                    # shortcut: recorded before the fetch runs, so a denied or failed fetch still
+                    # counts as opened; move to a PostToolUse hook if agents cite unread pages.
+                    store.sessions.record_fetch(
+                        session.id, payload["tool_input"]["url"], clock.now()
+                    )
             return _decision(True, "counted against the session search budget")
         except Exception as exc:
             self._log("pre-tool", type(exc).__name__)

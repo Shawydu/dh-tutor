@@ -872,30 +872,18 @@ def test_learners_choice_is_stored_on_a_new_charter_version_and_shown_on_resume(
 
 
 @pytest.mark.parametrize(
-    ("url", "preregistered", "ok"),
+    ("url", "ok"),
     [
-        ("https://github.com/e/a", False, True),
-        ("https://blog.example.com/post", False, False),
-        ("https://blog.example.com/post", True, True),
-        ("http://github.com/e/a", False, False),
-        ("https://github.com:8080/e/a", False, False),
+        ("https://github.com/e/a", True),
+        ("https://blog.example.com/post", False),
+        ("http://github.com/e/a", False),
+        ("https://github.com:8080/e/a", False),
     ],
-    ids=[
-        "allowlisted",
-        "off-allowlist",
-        "already-registered-by-search",
-        "http-scheme",
-        "other-port",
-    ],
+    ids=["allowlisted", "off-allowlist", "http-scheme", "other-port"],
 )
-def test_source_register_refuses_off_allowlist_urls(
-    ledger: Ledger, url: str, preregistered: bool, ok: bool
-) -> None:
-    """A url off the allowlist (host, scheme or port) is refused unless already registered."""
+def test_source_register_refuses_off_allowlist_urls(ledger: Ledger, url: str, ok: bool) -> None:
+    """A url off the allowlist (host, scheme or port) is refused."""
     sid = _session(ledger)[1]
-    if preregistered:
-        with Database(ledger.paths.db) as db:
-            Store(db).sources.register(url=url, kind="blog", tier=3, seen_at=clock.now())
     out = ledger.call("source_register", session_id=sid, url=url, kind="docs", tier=1)
     assert ("id" in out) is ok
     if not ok:

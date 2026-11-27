@@ -58,6 +58,24 @@ class SessionRepo(IdRepo[Session]):
             == 1
         )
 
+    def record_fetch(self, session_id: UUID, url: str, at: datetime) -> None:
+        """Remember a page the agent opened with its built-in WebFetch in this session."""
+        self.conn.execute(
+            "INSERT OR IGNORE INTO session_fetched_url (session_id, url, fetched_at)"
+            " VALUES (?, ?, ?)",
+            (session_id, url, at),
+        )
+
+    def fetched(self, session_id: UUID, url: str) -> bool:
+        """Whether the session opened `url` with WebFetch."""
+        return (
+            self.conn.execute(
+                "SELECT 1 FROM session_fetched_url WHERE session_id = ? AND url = ?",
+                (session_id, url),
+            ).fetchone()
+            is not None
+        )
+
     def set_student_mode(self, session_id: UUID, mode: SessionStudentMode) -> Session:
         self.require(session_id)
         self.conn.execute("UPDATE session SET student_mode = ? WHERE id = ?", (mode, session_id))

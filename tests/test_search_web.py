@@ -73,11 +73,22 @@ def test_search_registers_sources_and_returns_their_ids(web: Ledger) -> None:
     sid = _session(web)[1]
     out = web.call("search", query="iceberg", session_id=sid)
     assert out["errors"] == {} and out["results"]
-    assert web.count("source") == len({r["source_id"] for r in out["results"]})
+    ids = {r["source_id"] for r in out["results"]} - {None}
+    assert web.count("source") == len(ids)
     web.call(
         "search", query="iceberg", session_id=sid
     )  # second call is a cache hit and adds no sources
-    assert web.count("source") == len({r["source_id"] for r in out["results"]})
+    assert web.count("source") == len(ids)
+
+
+def test_search_does_not_register_results_off_the_allowlist(web: Ledger) -> None:
+    """A Hacker News story linking off the allowlist has source_id null."""
+    sid = _session(web)[1]
+    out = web.call("search", query="iceberg", providers=["hn"], session_id=sid)
+    by_url = {r["url"]: r["source_id"] for r in out["results"]}
+    assert by_url["https://joshdata.me/iceberger.html"] is None
+    assert by_url["https://github.com/Snowflake-Labs/pg_lake"] is not None
+    assert web.count("source") == sum(v is not None for v in by_url.values())
 
 
 def test_search_budget_runs_out(web: Ledger) -> None:

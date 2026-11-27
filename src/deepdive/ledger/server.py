@@ -37,7 +37,8 @@ from deepdive.store.errors import StoreError
 
 INSTRUCTIONS = (
     "The deepdive ledger: topics, charters, sessions, agenda, sources, claims and questions, "
-    "plus search and fetch (the only web access; results carry a citable source_id). "
+    "plus search and fetch (the only web access; results carry a citable source_id, null when "
+    "off the allowlist). "
     "Write tools need the session_id returned by session_start. Failures come back as "
     '{"error": code, "detail": text}, not as protocol errors.'
 )

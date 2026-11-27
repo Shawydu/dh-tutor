@@ -35,15 +35,15 @@ class ClaimTools(Tools):
         """Register a source by url or doi (one is required). Returns the existing row if known.
 
         Claims and evidence can only cite a source that is registered here. A url off the domain
-        allowlist is refused unless `search` or `fetch` already registered it.
+        allowlist is refused unless this session opened it with the built-in WebFetch.
         """
-        if url and not self.ctx.store.sources.find(url=url):
+        if url and not self.ctx.store.sessions.fetched(session_id, url):
             try:
                 check_url(url, self.allowlist)
             except FetchError as exc:
                 raise InvalidInputError(
-                    f"{url} refused: {exc}; allowlist {self.allowlist}. Cite a page from "
-                    "`search` or `fetch` (they register it) instead"
+                    f"{url} refused: {exc}; allowlist {self.allowlist}. A page off the allowlist "
+                    "can be cited only after opening it with WebFetch in this session"
                 ) from exc
         return self.ctx.store.sources.register(
             url=url,

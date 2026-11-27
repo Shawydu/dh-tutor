@@ -53,6 +53,7 @@ DESIGN_TABLES = {
     "probe_topic",  # 0006
     "concept_alias",  # 0010
     "claim_concept",  # 0010
+    "session_fetched_url",  # 0016
 }
 # every column that holds a closed set of values, and the lookup table it references
 ENUM_COLUMNS = [
@@ -149,6 +150,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             "0013_session_grading",
             "0014_charter_decision",
             "0015_session_searches_used",
+            "0016_session_fetched_url",
         ]
         assert db.migrate() == []
         assert db.conn.execute("SELECT version, name FROM schema_migrations").fetchall() == [
@@ -167,6 +169,7 @@ def test_migrate_twice_is_a_no_op(tmp_path: Path) -> None:
             (13, "0013_session_grading"),
             (14, "0014_charter_decision"),
             (15, "0015_session_searches_used"),
+            (16, "0016_session_fetched_url"),
         ]
 
 
