@@ -3,6 +3,7 @@ from contextlib import closing
 from pathlib import Path
 
 import pytest
+from replay import assert_dive_intake_state
 
 from live.session import Session
 
@@ -26,13 +27,10 @@ def test_dive_intake_ends_scoping_with_a_charter(home: Path) -> None:
         assert made, f"{name} never called"
         assert not any(c.error for c in made), f"{name} failed: {[c.result for c in made]}"
 
+    assert_dive_intake_state(home / "deepdive.db")
     with closing(sqlite3.connect(f"file:{home / 'deepdive.db'}?mode=ro", uri=True)) as db:
-        assert db.execute("SELECT count(*) FROM topic").fetchone() == (1,)
-        assert db.execute("SELECT count(*) FROM session WHERE ended_at IS NULL").fetchone() == (1,)
         attached = db.execute(
             "SELECT count(*) FROM agent_session a JOIN session s ON s.id = a.session_id"
             " WHERE s.ended_at IS NULL"
         ).fetchone()
-        latest = db.execute("SELECT search_terms FROM charter ORDER BY version DESC").fetchone()
     assert attached == (1,)  # the PostToolUse hook linked Claude's session, not the guide
-    assert latest and latest[0] != "[]", latest  # charters are versioned; the guide may revise

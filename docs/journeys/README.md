@@ -19,3 +19,11 @@ Copy to `docs/journeys/<name>.md`.
 - **Model:** which model, and the cap on agent turns.
 - **How to run:** the pytest command.
 ```
+
+## Re-recording a journey
+
+Each journey's stream lives at `tests/fixtures/sessions/<name>.jsonl` and replays offline on every `pytest` run (`tests/replay.py`: its `mcp__deepdive__*` calls go through the in-process server, recorded ids mapped to new ones; hooks are not replayed). When a tool contract changes, replay fails naming the fixture and step. Re-record:
+
+1. Run the live journey (command above) with `--basetemp=<dir>`; the streams land in `<dir>/test_*0/turn<N>.jsonl`.
+2. Concatenate them in numeric turn order into `tests/fixtures/sessions/<name>.jsonl`.
+3. Scrub the user name, home paths and secrets from the file before committing.
