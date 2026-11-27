@@ -13,5 +13,4 @@ dist/
 .env
 
 tasks/
-docs/
 .backpassrc.json

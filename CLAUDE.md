@@ -83,7 +83,6 @@ The goal is to stop code spilling past what the task needs. Be critical and conc
 
 ## Guides
 
-- `docs/guides/00-workflow.md` — the build loop
 - `docs/guides/01-architecture-rules.md` — module boundaries and layout
 - `docs/guides/02-claude-code-runtime.md` — how the runtime workspace wires Claude Code
 - `docs/guides/03-classifier-and-jev.md` — classifier interface, Jev, fallback
