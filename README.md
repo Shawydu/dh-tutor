@@ -44,8 +44,10 @@ Every command takes `--help`.
 uv run pytest -q            # unit and integration tests, no network
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
-DEEPDIVE_LIVE=1 uv run pytest -m live   # opt-in tests against real services
+DEEPDIVE_LIVE=1 uv run pytest -m live tests/live   # opt-in journeys in a real Claude Code session
 ```
+
+Live runs spend your Claude subscription. `DEEPDIVE_LIVE_MODEL` picks the model (default `haiku`); `DEEPDIVE_LIVE_SNAPSHOT=<path to a deepdive.db>` starts the throwaway home from a copy of that database. Journeys are described in [`docs/journeys/`](docs/journeys/README.md).
 
 Project rules for Claude Code are in [`CLAUDE.md`](CLAUDE.md). The task plan lives in a local, uncommitted `tasks/` folder; the build loop is one task per session (`/do-task <ID>`, then `/verify-task <ID>`), a reviewer pass on the staged diff, and one commit per finished task.
 

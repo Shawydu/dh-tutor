@@ -46,6 +46,7 @@ SQLite has no UUID, timestamp or enum types. The schema declares them by name, e
 - The plan is in `tasks/`. `tasks/README.md` is the index and status board.
 - Work on **one task per session**. Start with `/do-task <ID>`; finish with `/verify-task <ID>`. If the user names several tasks, do them one at a time: finish each (review loop, `tasks/README.md`, commit) before starting the next.
 - A task is done only when every acceptance check passes and `tasks/README.md` is updated.
+- A task's manual check is replaced by a named live journey (`docs/journeys/`); the task is done only when that journey passes.
 - If a task is unclear or wrong, stop and say so. Propose an edit to the task file rather than guessing.
 - Don't build ahead. Stubs for later tasks are fine only where a task says so.
 - Orchestration: the main session orchestrates and does not implement. It fires a Sonnet subagent (`model: "sonnet"`) for the actual implementation, then owns the review loop and the finishing touches, and steps in when a result goes off the rails.

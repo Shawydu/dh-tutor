@@ -19,7 +19,7 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["live: hits real networks; run with DEEPDIVE_LIVE=1 pytest -m live"]
+markers = ["live: real networks or a real agent session; run with DEEPDIVE_LIVE=1 pytest -m live"]
 addopts = "-m 'not live'"
 
 [tool.ruff]
