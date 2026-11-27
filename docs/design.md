@@ -77,7 +77,7 @@ Agent tools never touch the store or the web directly. The engine owns the store
 Every topic moves from scoping to a charter to a deep dive, and the map grows as you go.
 
 1. **Intake.** You give a topic in a sentence.
-2. **Scoping.** The guide asks a few questions: your context, what you already know, and what's driving the question (a decision at work, curiosity, an interview).
+2. **Scoping.** The guide asks a few questions: your context, what you already know, and what's driving the question (a decision at work, curiosity, an interview). Journey: [dive-intake](journeys/dive-intake.md).
 3. **Charter.** The answers produce a versioned topic charter:
    1. Core questions: one to three
    2. In scope: the facets agreed
